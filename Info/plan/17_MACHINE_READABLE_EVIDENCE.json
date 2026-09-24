@@ -1,0 +1,35 @@
+{
+  "customer": {
+    "file": "/mnt/data/redBus+Book+Bus,+Train+Tickets_82.5.5_APKPure.xapk",
+    "sha256": "7edb7442213570757d7c2164acd7755f9587f3b5cdd1115c2d2194c7341ab019",
+    "package": "in.redbus.android",
+    "version": "82.5.5",
+    "version_code": "825050",
+    "min_sdk": 26,
+    "target_sdk": 35,
+    "split_apks": [
+      "activities",
+      "config.arm64_v8a",
+      "config.xxhdpi",
+      "ferry",
+      "gamification",
+      "redTv",
+      "waterways"
+    ],
+    "layout_xml_count": 636
+  },
+  "operator": {
+    "file": "/mnt/data/redBus+Plus-+For+Bus+Operators_2.0.6_APKPure.apk",
+    "sha256": "62ae4197f1d25db942b084bc5135293084b4e383b92f5ed314f58694e738bf4b",
+    "package": "redbus.rbplus.android",
+    "version": "2.0.6",
+    "version_code": "39"
+  },
+  "architecture_decision": "Thirty8 uses one canonical backend/database for customer and operator clients",
+  "evidence_policy": [
+    "OBSERVED",
+    "INFERRED",
+    "PROPOSED",
+    "UNKNOWN"
+  ]
+}
