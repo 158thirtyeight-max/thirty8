@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/signup_screen.dart';
 import '../features/auth/splash_screen.dart';
-import '../features/home/home_shell.dart';
+import '../features/home/home_gate.dart';
 import '../features/search/city.dart';
 import '../features/search/search_results_screen.dart';
 
@@ -48,7 +48,7 @@ GoRouter buildRouter() {
       GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (context, state) => const SignupScreen()),
-      GoRoute(path: '/home', builder: (context, state) => const HomeShell()),
+      GoRoute(path: '/home', builder: (context, state) => const HomeGate()),
       GoRoute(
         path: '/search-results',
         builder: (context, state) {

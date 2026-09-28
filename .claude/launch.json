@@ -6,6 +6,18 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd /d C:\\GitHub\\thirty8\\apps\\customer_app && flutter run -d web-server --web-port 8765 --web-hostname 127.0.0.1"],
       "port": 8765
+    },
+    {
+      "name": "operator_app_web",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d C:\\GitHub\\thirty8\\apps\\operator_app && flutter run -d web-server --web-port 8766 --web-hostname 127.0.0.1"],
+      "port": 8766
+    },
+    {
+      "name": "admin_web",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d C:\\GitHub\\thirty8\\apps\\admin_web && npm run dev -- --port 8767"],
+      "port": 8767
     }
   ]
 }

@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* Thirty8 Admin is a single fixed dark theme — internal tool, no light mode. */
+:root {
+  --background: #020617;
+  --foreground: #f1f5f9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

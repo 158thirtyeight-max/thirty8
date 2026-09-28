@@ -4,11 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
+import 'otp_verification_screen.dart';
 
-/// Interim email/password signup for the customer app (see
-/// supabase/migrations/20260923001900_customer_email_password_interim.sql).
-/// The `data: {'app': 'customer'}` metadata is what grants the 'customer'
-/// role automatically — don't drop it if this screen is ever refactored.
+/// Email/password signup for the customer app. `data: {'app': 'customer'}`
+/// is what private.handle_new_user() reads to grant the 'customer' role;
+/// full_name/phone are read by the same trigger to populate the profile row
+/// (see supabase/migrations/20260925000100_capture_signup_profile_fields.sql).
+///
+/// Email confirmation is OTP-based, not link-based: after signUp() the user
+/// is sent to OtpVerificationScreen to enter the 6-digit code from their
+/// inbox (requires the "Confirm signup" email template in the Supabase
+/// dashboard to be customized to show {{ .Token }}).
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
@@ -20,15 +26,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
-  bool _checkEmailMessage = false;
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -39,15 +46,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       _loading = true;
       _error = null;
     });
+    final email = _emailController.text.trim();
     try {
       final res = await ref.read(supabaseProvider).auth.signUp(
-            email: _emailController.text.trim(),
+            email: email,
             password: _passwordController.text,
-            data: {'app': 'customer', 'full_name': _nameController.text.trim()},
+            data: {
+              'app': 'customer',
+              'full_name': _nameController.text.trim(),
+              'phone': _phoneController.text.trim(),
+            },
           );
+      if (!mounted) return;
       if (res.session == null) {
-        // Email confirmation is required before a session is issued.
-        setState(() => _checkEmailMessage = true);
+        // Email confirmation required — collect the OTP instead of a link.
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => OtpVerificationScreen(email: email)));
       }
     } on AuthException catch (e) {
       setState(() => _error = e.message);
@@ -60,30 +73,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_checkEmailMessage) {
-      return Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.mark_email_read_outlined, size: 64, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(height: 16),
-                  Text('Check your email', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  const Text('We sent a confirmation link — tap it, then come back and log in.', textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
-                  ElevatedButton(onPressed: () => context.go('/login'), child: const Text('Back to login')),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(title: const Text('Create account')),
       body: SafeArea(
@@ -109,6 +98,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Phone number'),
+                  validator: (v) => (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'Password'),
@@ -124,6 +120,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   child: _loading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Sign up'),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => context.pop(),
+                  child: const Text('Already have an account? Log in'),
                 ),
               ],
             ),

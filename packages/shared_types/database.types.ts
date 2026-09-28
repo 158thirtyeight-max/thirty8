@@ -505,6 +505,47 @@ export type Database = {
           },
         ]
       }
+      bus_trip_events: {
+        Row: {
+          event_type: string
+          id: string
+          latitude: number
+          longitude: number
+          point_name: string | null
+          point_type: string | null
+          recorded_at: string
+          trip_id: string
+        }
+        Insert: {
+          event_type: string
+          id?: string
+          latitude: number
+          longitude: number
+          point_name?: string | null
+          point_type?: string | null
+          recorded_at?: string
+          trip_id: string
+        }
+        Update: {
+          event_type?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          point_name?: string | null
+          point_type?: string | null
+          recorded_at?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bus_trip_events_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "bus_trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bus_trips: {
         Row: {
           arrival_at: string | null
@@ -514,8 +555,11 @@ export type Database = {
           bus_id: string
           created_at: string
           currency_code: string
+          current_latitude: number | null
+          current_longitude: number | null
           departure_at: string
           id: string
+          last_location_update: string | null
           live_tracking_enabled: boolean
           max_fare_cents: number | null
           min_fare_cents: number | null
@@ -534,8 +578,11 @@ export type Database = {
           bus_id: string
           created_at?: string
           currency_code?: string
+          current_latitude?: number | null
+          current_longitude?: number | null
           departure_at: string
           id?: string
+          last_location_update?: string | null
           live_tracking_enabled?: boolean
           max_fare_cents?: number | null
           min_fare_cents?: number | null
@@ -554,8 +601,11 @@ export type Database = {
           bus_id?: string
           created_at?: string
           currency_code?: string
+          current_latitude?: number | null
+          current_longitude?: number | null
           departure_at?: string
           id?: string
+          last_location_update?: string | null
           live_tracking_enabled?: boolean
           max_fare_cents?: number | null
           min_fare_cents?: number | null
@@ -2358,7 +2408,12 @@ export type Database = {
         }
         Returns: Json
       }
+      track_bus_trip: { Args: { p_trip_id: string }; Returns: Json }
       track_cargo_shipment: { Args: { p_shipment_id: string }; Returns: Json }
+      update_bus_location: {
+        Args: { p_latitude: number; p_longitude: number; p_trip_id: string }
+        Returns: Json
+      }
       update_cargo_location: {
         Args: { p_latitude: number; p_longitude: number; p_shipment_id: string }
         Returns: Json

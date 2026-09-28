@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/supabase_providers.dart';
+import 'booking_detail_screen.dart';
 
 class MyTripsTab extends ConsumerStatefulWidget {
   const MyTripsTab({super.key});
@@ -23,18 +24,26 @@ class _MyTripsTabState extends ConsumerState<MyTripsTab> {
 
   Future<void> _load() async {
     final userId = ref.read(currentUserProvider)?.id;
-    if (userId == null) return;
-    final res = await ref
-        .read(supabaseProvider)
-        .from('bookings')
-        .select()
-        .eq('customer_id', userId)
-        .order('created_at', ascending: false);
-    if (!mounted) return;
-    setState(() {
-      _bookings = List<Map<String, dynamic>>.from(res as List);
-      _loading = false;
-    });
+    if (userId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final res = await ref
+          .read(supabaseProvider)
+          .from('bookings')
+          .select()
+          .eq('customer_id', userId)
+          .order('created_at', ascending: false);
+      if (!mounted) return;
+      setState(() {
+        _bookings = List<Map<String, dynamic>>.from(res as List);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   Color _statusColor(String status, BuildContext context) {
@@ -88,6 +97,12 @@ class _MyTripsTabState extends ConsumerState<MyTripsTab> {
                           ),
                         ],
                       ),
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => BookingDetailScreen(bookingId: b['id'] as String)),
+                        );
+                        _load();
+                      },
                     ),
                   );
                 },

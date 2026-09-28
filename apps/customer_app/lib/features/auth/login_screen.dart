@@ -17,6 +17,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
+  bool _googleLoading = false;
   String? _error;
 
   @override
@@ -44,6 +45,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _error = 'Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Opens Google's consent screen in a Chrome Custom Tab, which hands the
+  /// `io.thirty8.customer://login-callback/` redirect straight back to this
+  /// app (registered in AndroidManifest.xml). Requires the Google provider
+  /// to be enabled with a Client ID/Secret in the Supabase dashboard, and
+  /// that same redirect URL added under Auth > URL Configuration.
+  Future<void> _loginWithGoogle() async {
+    setState(() {
+      _googleLoading = true;
+      _error = null;
+    });
+    try {
+      await ref.read(supabaseProvider).auth.signInWithOAuth(
+            OAuthProvider.google,
+            redirectTo: 'io.thirty8.customer://login-callback/',
+            authScreenLaunchMode: LaunchMode.platformDefault,
+          );
+      // Router redirect (see core/router.dart) takes over once the OAuth
+      // callback lands and a session exists.
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Could not sign in with Google. Please try again.');
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
     }
   }
 
@@ -87,6 +115,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: _loading
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Text('Log in'),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('or', style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _googleLoading ? null : _loginWithGoogle,
+                    icon: _googleLoading
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.g_mobiledata, size: 28),
+                    label: const Text('Continue with Google'),
                   ),
                   const SizedBox(height: 16),
                   TextButton(

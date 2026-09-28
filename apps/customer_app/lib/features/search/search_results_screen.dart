@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/supabase_providers.dart';
+import 'bus_details_screen.dart';
 import 'city.dart';
 
 class SearchResultsScreen extends ConsumerStatefulWidget {
@@ -132,7 +133,9 @@ class _DirectTripCard extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton(
                 onPressed: () {
-                  // Bus details / seat selection screen — Phase 7 continued.
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => BusDetailsScreen(trip: trip)),
+                  );
                 },
                 child: const Text('Select seats'),
               ),

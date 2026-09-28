@@ -23,19 +23,27 @@ class _NotificationsTabState extends ConsumerState<NotificationsTab> {
 
   Future<void> _load() async {
     final userId = ref.read(currentUserProvider)?.id;
-    if (userId == null) return;
-    final res = await ref
-        .read(supabaseProvider)
-        .from('notifications')
-        .select()
-        .eq('profile_id', userId)
-        .order('created_at', ascending: false)
-        .limit(50);
-    if (!mounted) return;
-    setState(() {
-      _items = List<Map<String, dynamic>>.from(res as List);
-      _loading = false;
-    });
+    if (userId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final res = await ref
+          .read(supabaseProvider)
+          .from('notifications')
+          .select()
+          .eq('profile_id', userId)
+          .order('created_at', ascending: false)
+          .limit(50);
+      if (!mounted) return;
+      setState(() {
+        _items = List<Map<String, dynamic>>.from(res as List);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   Future<void> _markRead(String id) async {
