@@ -43,3 +43,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# Reference materials — competitor APKs, not project source (Info/plan/ docs are kept)
+*.apk
+*.xapk
