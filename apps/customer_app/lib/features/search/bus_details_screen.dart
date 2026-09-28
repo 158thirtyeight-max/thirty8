@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -67,36 +68,33 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(trip['operator_name'] as String? ?? 'Bus details')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingState())
           : SafeArea(
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(trip['operator_name'] as String? ?? '', style: Theme.of(context).textTheme.titleMedium),
-                          if (trip['operator_rating'] != null) ...[
-                            const SizedBox(height: 4),
-                            Row(children: [const Icon(Icons.star, size: 16, color: Colors.amber), Text(' ${trip['operator_rating']}')]),
-                          ],
-                          const SizedBox(height: 8),
-                          Text((trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.bodySmall),
-                          if (amenities.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              children: amenities.map((a) => Chip(label: Text(a.replaceAll('_', ' ')))).toList(),
-                            ),
-                          ],
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(trip['operator_name'] as String? ?? '', style: Theme.of(context).textTheme.titleMedium),
+                        if (trip['operator_rating'] != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(children: [const Icon(Icons.star, size: 16, color: AppColors.accent), Text(' ${trip['operator_rating']}')]),
                         ],
-                      ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text((trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.bodySmall),
+                        if (amenities.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Wrap(
+                            spacing: AppSpacing.sm,
+                            children: amenities.map((a) => AppChip(label: a.replaceAll('_', ' '))).toList(),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   Text('Boarding point', style: Theme.of(context).textTheme.titleSmall),
                   ..._boardingPoints.map((bp) => RadioListTile<Map<String, dynamic>>(
                         value: bp,
@@ -105,7 +103,7 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
                         title: Text(bp['name'] as String),
                         subtitle: bp['address'] != null ? Text(bp['address'] as String) : null,
                       )),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   Text('Dropping point', style: Theme.of(context).textTheme.titleSmall),
                   ..._droppingPoints.map((dp) => RadioListTile<Map<String, dynamic>>(
                         value: dp,
@@ -114,10 +112,11 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
                         title: Text(dp['name'] as String),
                         subtitle: dp['address'] != null ? Text(dp['address'] as String) : null,
                       )),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
+                  const SizedBox(height: AppSpacing.lg),
+                  AppButton(
+                    label: 'Select seats',
                     onPressed: _continue,
-                    child: const Text('Select seats'),
+                    expand: true,
                   ),
                 ],
               ),

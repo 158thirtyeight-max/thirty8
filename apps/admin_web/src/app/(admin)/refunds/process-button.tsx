@@ -20,11 +20,11 @@ export default function ProcessButton({ refundId, action }: { refundId: string; 
             }
           })
         }
-        className="rounded-md bg-indigo-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
+        className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-dark disabled:opacity-50"
       >
         {isPending ? "Processing…" : "Process refund"}
       </button>
-      {error && <p className="mt-1 max-w-xs text-xs text-red-400">{error}</p>}
+      {error && <p className="mt-1 max-w-xs text-xs text-error">{error}</p>}
     </div>
   );
 }

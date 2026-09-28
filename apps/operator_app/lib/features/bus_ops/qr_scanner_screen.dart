@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -53,10 +54,10 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
               right: 16,
               bottom: 32,
               child: Card(
-                color: _lastSuccess ? Colors.green.shade600 : Colors.red.shade600,
+                color: _lastSuccess ? AppColors.success : AppColors.error,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(_lastMessage!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  child: Text(_lastMessage!, style: AppTypography.body(Colors.white).copyWith(fontWeight: FontWeight.w600)),
                 ),
               ),
             ),

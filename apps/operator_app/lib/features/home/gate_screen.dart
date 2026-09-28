@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,7 +26,7 @@ class GateScreen extends ConsumerWidget {
         if (!isComplete) return const CompleteProfileScreen();
         return const _OperatorGate();
       },
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: Center(child: AppLoadingState())),
       error: (e, st) => const _OperatorGate(),
     );
   }
@@ -44,8 +45,8 @@ class _OperatorGate extends ConsumerWidget {
         if (!operatorContext.isApproved) return const PendingApprovalScreen();
         return HomeShell(context: operatorContext);
       },
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, st) => Scaffold(body: Center(child: Text('Something went wrong: $e'))),
+      loading: () => const Scaffold(body: Center(child: AppLoadingState())),
+      error: (e, st) => Scaffold(body: AppErrorState(message: 'Something went wrong: $e')),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -94,40 +95,37 @@ class _ShipmentQuoteScreenState extends ConsumerState<ShipmentQuoteScreen> {
       appBar: AppBar(title: const Text('Price quote')),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppLoadingState()
             : _error != null
-                ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(_error!, textAlign: TextAlign.center)))
+                ? AppErrorState(message: _error!, onRetry: _loadQuote)
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _QuoteRow('Distance', '${_quote!['distance_km']} km'),
-                              _QuoteRow('Base fare', '₹${(_quote!['base_fare_cents'] / 100).toStringAsFixed(0)}'),
-                              _QuoteRow('Distance charge', '₹${(_quote!['distance_fare_cents'] / 100).toStringAsFixed(0)}'),
-                              _QuoteRow('Weight charge', '₹${(_quote!['weight_fare_cents'] / 100).toStringAsFixed(0)}'),
-                              if ((_quote!['surcharge_cents'] as int) > 0)
-                                _QuoteRow('Surcharge', '₹${(_quote!['surcharge_cents'] / 100).toStringAsFixed(0)}'),
-                              const Divider(),
-                              _QuoteRow(
-                                'Total',
-                                '₹${((_quote!['total_fare_cents'] as int) / 100).toStringAsFixed(0)}',
-                                bold: true,
-                              ),
-                            ],
-                          ),
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _QuoteRow('Distance', '${_quote!['distance_km']} km'),
+                            _QuoteRow('Base fare', '₹${(_quote!['base_fare_cents'] / 100).toStringAsFixed(0)}'),
+                            _QuoteRow('Distance charge', '₹${(_quote!['distance_fare_cents'] / 100).toStringAsFixed(0)}'),
+                            _QuoteRow('Weight charge', '₹${(_quote!['weight_fare_cents'] / 100).toStringAsFixed(0)}'),
+                            if ((_quote!['surcharge_cents'] as int) > 0)
+                              _QuoteRow('Surcharge', '₹${(_quote!['surcharge_cents'] / 100).toStringAsFixed(0)}'),
+                            const Divider(),
+                            _QuoteRow(
+                              'Total',
+                              '₹${((_quote!['total_fare_cents'] as int) / 100).toStringAsFixed(0)}',
+                              bold: true,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 24),
-                      ElevatedButton(
+                      AppButton(
+                        label: 'Confirm & pay',
+                        expand: true,
+                        loading: _confirming,
                         onPressed: _confirming ? null : _confirmAndPay,
-                        child: _confirming
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Confirm & pay'),
                       ),
                     ],
                   ),
@@ -145,7 +143,8 @@ class _QuoteRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: bold ? 18 : 14);
+    final textTheme = Theme.of(context).textTheme;
+    final style = bold ? textTheme.titleMedium : textTheme.bodyMedium;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -67,24 +68,23 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
                     iconSize: 40,
                     icon: Icon(
                       starIndex <= _rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
+                      color: AppColors.accent,
                     ),
                     onPressed: () => setState(() => _rating = starIndex),
                   );
                 }),
               ),
               const SizedBox(height: 24),
-              TextField(
+              AppTextField(
                 controller: _reviewController,
+                label: 'Tell us more (optional)',
                 maxLines: 4,
-                decoration: const InputDecoration(labelText: 'Tell us more (optional)', alignLabelWithHint: true),
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
+              AppButton(
+                label: 'Submit rating',
+                loading: _submitting,
                 onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Submit rating'),
               ),
             ],
           ),

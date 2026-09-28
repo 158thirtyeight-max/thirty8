@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -83,49 +84,44 @@ class _HomeTabState extends State<HomeTab> {
           const SizedBox(height: 4),
           Text('Where are you headed?', style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _PickerRow(
-                    icon: Icons.trip_origin,
-                    label: _source?.name ?? 'Leaving from',
-                    onTap: () => _pickCity(isSource: true),
-                  ),
-                  const Divider(height: 24),
-                  Stack(
-                    alignment: Alignment.centerRight,
-                    children: [
-                      _PickerRow(
-                        icon: Icons.location_on,
-                        label: _destination?.name ?? 'Going to',
-                        onTap: () => _pickCity(isSource: false),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.swap_vert),
-                        onPressed: _swap,
-                        tooltip: 'Swap',
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 24),
-                  _PickerRow(
-                    icon: Icons.calendar_today_outlined,
-                    label: dateLabel,
-                    onTap: _pickDate,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _search,
-                      icon: const Icon(Icons.search),
-                      label: const Text('Search buses'),
+          AppCard(
+            child: Column(
+              children: [
+                _PickerRow(
+                  icon: Icons.trip_origin,
+                  label: _source?.name ?? 'Leaving from',
+                  onTap: () => _pickCity(isSource: true),
+                ),
+                const Divider(height: 24),
+                Stack(
+                  alignment: Alignment.centerRight,
+                  children: [
+                    _PickerRow(
+                      icon: Icons.location_on,
+                      label: _destination?.name ?? 'Going to',
+                      onTap: () => _pickCity(isSource: false),
                     ),
-                  ),
-                ],
-              ),
+                    IconButton(
+                      icon: const Icon(Icons.swap_vert),
+                      onPressed: _swap,
+                      tooltip: 'Swap',
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                _PickerRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: dateLabel,
+                  onTap: _pickDate,
+                ),
+                const SizedBox(height: 16),
+                AppButton(
+                  label: 'Search buses',
+                  onPressed: _search,
+                  icon: Icons.search,
+                  expand: true,
+                ),
+              ],
             ),
           ),
         ],
@@ -145,7 +141,7 @@ class _PickerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppRadius.smRadius,
       child: Row(
         children: [
           Icon(icon, color: Theme.of(context).colorScheme.primary),

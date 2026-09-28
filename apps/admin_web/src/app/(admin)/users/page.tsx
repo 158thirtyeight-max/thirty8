@@ -37,7 +37,7 @@ export default async function UsersPage() {
               <Td>{p.full_name ?? "—"}</Td>
               <Td>
                 <div>{p.email ?? "—"}</div>
-                <div className="text-slate-500">{p.phone ?? ""}</div>
+                <div className="text-text-tertiary">{p.phone ?? ""}</div>
               </Td>
               <Td>
                 {p.user_roles?.length

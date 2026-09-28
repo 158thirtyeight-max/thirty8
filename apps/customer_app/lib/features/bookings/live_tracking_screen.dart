@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -55,46 +56,41 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Live tracking')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingState()
           : _data == null
-              ? const Center(child: Text('Tracking is not available for this trip.'))
+              ? const AppEmptyState(message: 'Tracking is not available for this trip.', icon: Icons.location_off_outlined)
               : SafeArea(
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Trip status: ${_data!['status']}', style: Theme.of(context).textTheme.titleSmall),
-                              const SizedBox(height: 8),
-                              if (_data!['current_latitude'] != null)
-                                Text('Last known position: ${_data!['current_latitude']}, ${_data!['current_longitude']}')
-                              else
-                                const Text('No location reported yet.'),
-                              if (_data!['last_location_update'] != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Updated ${DateFormat('h:mm a').format(DateTime.parse(_data!['last_location_update'] as String).toLocal())}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Trip status: ${_data!['status']}', style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            if (_data!['current_latitude'] != null)
+                              Text('Last known position: ${_data!['current_latitude']}, ${_data!['current_longitude']}')
+                            else
+                              const Text('No location reported yet.'),
+                            if (_data!['last_location_update'] != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Updated ${DateFormat('h:mm a').format(DateTime.parse(_data!['last_location_update'] as String).toLocal())}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             ],
-                          ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Text('Timeline', style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: 8),
+                      AppSectionHeader(title: 'Timeline'),
                       ...List<Map<String, dynamic>>.from(_data!['events'] as List).map((e) {
                         final isMilestone = e['event_type'] == 'milestone_arrived';
-                        return ListTile(
+                        return AppListItem(
                           leading: Icon(isMilestone ? Icons.flag : Icons.gps_fixed, size: 20),
-                          title: Text(isMilestone ? 'Arrived at ${e['point_name']}' : 'Location update'),
-                          subtitle: Text(DateFormat('h:mm a').format(DateTime.parse(e['recorded_at'] as String).toLocal())),
-                          dense: true,
+                          title: isMilestone ? 'Arrived at ${e['point_name']}' : 'Location update',
+                          subtitle: DateFormat('h:mm a').format(DateTime.parse(e['recorded_at'] as String).toLocal()),
                         );
                       }),
                     ],

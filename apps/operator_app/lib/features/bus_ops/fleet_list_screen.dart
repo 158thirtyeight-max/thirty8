@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,25 +25,30 @@ class FleetListScreen extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(busesProvider(context.operatorId)),
         child: busesAsync.when(
           data: (buses) => buses.isEmpty
-              ? ListView(children: const [
-                  Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No buses yet — add your first bus.'))),
-                ])
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [AppEmptyState(message: 'No buses yet — add your first bus.', icon: Icons.directions_bus_outlined)],
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: buses.length,
                   itemBuilder: (c, i) {
                     final bus = buses[i];
-                    return Card(
-                      child: ListTile(
+                    return AppCard(
+                      padding: EdgeInsets.zero,
+                      child: AppListItem(
                         leading: const Icon(Icons.directions_bus),
-                        title: Text(bus['registration_number'] as String),
-                        subtitle: Text('${bus['bus_type']} · ${bus['total_seats']} seats · ${bus['status']}'),
+                        title: bus['registration_number'] as String,
+                        subtitle: '${bus['bus_type']} · ${bus['total_seats']} seats · ${bus['status']}',
                       ),
                     );
                   },
                 ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, st) => Center(child: Text('Could not load fleet: $e')),
+          loading: () => const AppLoadingState(),
+          error: (e, st) => AppErrorState(
+            message: 'Could not load fleet: $e',
+            onRetry: () => ref.invalidate(busesProvider(context.operatorId)),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

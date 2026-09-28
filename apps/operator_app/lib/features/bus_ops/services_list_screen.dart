@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -36,9 +37,12 @@ class ServicesListScreen extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(busServicesProvider(context.operatorId)),
         child: servicesAsync.when(
           data: (services) => services.isEmpty
-              ? ListView(children: const [
-                  Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No services yet — add a route + bus first, then create a service.'))),
-                ])
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    AppEmptyState(message: 'No services yet — add a route + bus first, then create a service.', icon: Icons.route_outlined),
+                  ],
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: services.length,
@@ -53,8 +57,11 @@ class ServicesListScreen extends ConsumerWidget {
                     );
                   },
                 ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, st) => Center(child: Text('Could not load services: $e')),
+          loading: () => const AppLoadingState(),
+          error: (e, st) => AppErrorState(
+            message: 'Could not load services: $e',
+            onRetry: () => ref.invalidate(busServicesProvider(context.operatorId)),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -91,13 +98,14 @@ class _ServiceCardState extends ConsumerState<_ServiceCard> {
     final tripsAsync = _expanded ? ref.watch(tripsForServiceProvider(serviceId)) : null;
     final fmt = DateFormat('EEE, d MMM · h:mm a');
 
-    return Card(
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
-          ListTile(
+          AppListItem(
             leading: const Icon(Icons.route),
-            title: Text(widget.title),
-            subtitle: Text('${widget.service['default_departure_time']} · ${widget.service['status']}'),
+            title: widget.title,
+            subtitle: '${widget.service['default_departure_time']} · ${widget.service['status']}',
             trailing: IconButton(
               icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
               onPressed: () => setState(() => _expanded = !_expanded),
@@ -114,24 +122,23 @@ class _ServiceCardState extends ConsumerState<_ServiceCard> {
                         ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No trips scheduled yet'))
                         : Column(
                             children: trips
-                                .map((t) => ListTile(
-                                      dense: true,
-                                      title: Text(fmt.format(DateTime.parse(t['departure_at'] as String).toLocal())),
-                                      subtitle: Text('${t['available_seats']} seats left · ${t['status']}'),
-                                      trailing: const Icon(Icons.chevron_right),
+                                .map((t) => AppListItem(
+                                      title: fmt.format(DateTime.parse(t['departure_at'] as String).toLocal()),
+                                      subtitle: '${t['available_seats']} seats left · ${t['status']}',
                                       onTap: () => Navigator.of(context).push(
                                         MaterialPageRoute(builder: (_) => TripDetailScreen(tripId: t['id'] as String)),
                                       ),
                                     ))
                                 .toList(),
                           ),
-                    loading: () => const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()),
+                    loading: () => const Padding(padding: EdgeInsets.all(8), child: AppLoadingState()),
                     error: (e, st) => Text('Error: $e'),
                   ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Schedule a trip'),
+                  AppButton(
+                    label: 'Schedule a trip',
+                    icon: Icons.add,
+                    variant: AppButtonVariant.outline,
                     onPressed: () async {
                       final created = await Navigator.of(context).push<bool>(
                         MaterialPageRoute(builder: (_) => TripFormScreen(operatorId: widget.operatorId, service: widget.service)),

@@ -26,14 +26,14 @@ export default async function OperatorsPage() {
           {operators?.map((op) => (
             <tr key={op.id}>
               <Td>
-                <Link href={`/operators/${op.id}`} className="font-medium text-indigo-400 hover:underline">
+                <Link href={`/operators/${op.id}`} className="font-medium text-primary hover:underline">
                   {op.name}
                 </Link>
               </Td>
               <Td className="capitalize">{op.business_type}</Td>
               <Td>
                 <div>{op.contact_email}</div>
-                <div className="text-slate-500">{op.contact_phone}</div>
+                <div className="text-text-tertiary">{op.contact_phone}</div>
               </Td>
               <Td>
                 <Badge status={op.status} />

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -110,11 +111,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   ],
                   const SizedBox(height: 24),
-                  ElevatedButton(
+                  AppButton(
+                    label: 'Log in',
                     onPressed: _loading ? null : _login,
-                    child: _loading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Log in'),
+                    loading: _loading,
+                    expand: true,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -128,12 +129,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
+                  AppButton(
+                    label: 'Continue with Google',
                     onPressed: _googleLoading ? null : _loginWithGoogle,
-                    icon: _googleLoading
-                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.g_mobiledata, size: 28),
-                    label: const Text('Continue with Google'),
+                    loading: _googleLoading,
+                    variant: AppButtonVariant.outline,
+                    icon: Icons.g_mobiledata,
+                    expand: true,
                   ),
                   const SizedBox(height: 16),
                   TextButton(

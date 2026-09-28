@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -82,46 +83,18 @@ class DashboardTab extends ConsumerWidget {
                 childAspectRatio: 1.1,
                 children: [
                   if (context.servesBus) ...[
-                    _StatCard(label: "Today's trips", value: stats['todaysTrips'] ?? 0, icon: Icons.today),
-                    _StatCard(label: 'Buses in fleet', value: stats['buses'] ?? 0, icon: Icons.directions_bus),
+                    AppStatCard(label: "Today's trips", value: '${stats['todaysTrips'] ?? 0}', icon: Icons.today),
+                    AppStatCard(label: 'Buses in fleet', value: '${stats['buses'] ?? 0}', icon: Icons.directions_bus),
                   ],
                   if (context.servesCargo) ...[
-                    _StatCard(label: 'Awaiting acceptance', value: stats['pendingShipments'] ?? 0, icon: Icons.inbox),
-                    _StatCard(label: 'In transit', value: stats['inTransitShipments'] ?? 0, icon: Icons.local_shipping),
+                    AppStatCard(label: 'Awaiting acceptance', value: '${stats['pendingShipments'] ?? 0}', icon: Icons.inbox),
+                    AppStatCard(label: 'In transit', value: '${stats['inTransitShipments'] ?? 0}', icon: Icons.local_shipping),
                   ],
                 ],
               ),
               loading: () => const Padding(padding: EdgeInsets.only(top: 32), child: Center(child: CircularProgressIndicator())),
               error: (e, st) => Padding(padding: const EdgeInsets.only(top: 32), child: Text('Could not load stats: $e')),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.icon});
-
-  final String label;
-  final int value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 6),
-            Text('$value', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-            Text(label, style: Theme.of(context).textTheme.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,9 +32,9 @@ class RoutePointsScreen extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+            AppTextField(controller: nameController, label: 'Name'),
             const SizedBox(height: 8),
-            TextField(controller: addressController, decoration: const InputDecoration(labelText: 'Address (optional)')),
+            AppTextField(controller: addressController, label: 'Address (optional)'),
           ],
         ),
         actions: [
@@ -85,8 +86,8 @@ class RoutePointsScreen extends ConsumerWidget {
           boardingAsync.when(
             data: (points) => points.isEmpty
                 ? const Padding(padding: EdgeInsets.all(8), child: Text('None yet'))
-                : Column(children: points.map((p) => ListTile(leading: const Icon(Icons.pin_drop_outlined), title: Text(p['name'] as String), subtitle: p['address'] != null ? Text(p['address'] as String) : null)).toList()),
-            loading: () => const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()),
+                : Column(children: points.map((p) => AppListItem(leading: const Icon(Icons.pin_drop_outlined), title: p['name'] as String, subtitle: p['address'] as String?)).toList()),
+            loading: () => const Padding(padding: EdgeInsets.all(16), child: AppLoadingState()),
             error: (e, st) => Text('Error: $e'),
           ),
           const Divider(height: 32),
@@ -100,8 +101,8 @@ class RoutePointsScreen extends ConsumerWidget {
           droppingAsync.when(
             data: (points) => points.isEmpty
                 ? const Padding(padding: EdgeInsets.all(8), child: Text('None yet'))
-                : Column(children: points.map((p) => ListTile(leading: const Icon(Icons.pin_drop_outlined), title: Text(p['name'] as String), subtitle: p['address'] != null ? Text(p['address'] as String) : null)).toList()),
-            loading: () => const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()),
+                : Column(children: points.map((p) => AppListItem(leading: const Icon(Icons.pin_drop_outlined), title: p['name'] as String, subtitle: p['address'] as String?)).toList()),
+            loading: () => const Padding(padding: EdgeInsets.all(16), child: AppLoadingState()),
             error: (e, st) => Text('Error: $e'),
           ),
         ],

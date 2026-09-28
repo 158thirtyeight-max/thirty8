@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -62,21 +63,20 @@ class _BookingConfirmationScreenState extends ConsumerState<BookingConfirmationS
     return Scaffold(
       appBar: AppBar(title: const Text('Booking confirmed'), automaticallyImplyLeading: false),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingState()
           : SafeArea(
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Icon(Icons.check_circle, size: 64, color: Colors.green.shade600),
+                  const Icon(Icons.check_circle, size: 64, color: AppColors.success),
                   const SizedBox(height: 12),
                   Center(child: Text(widget.bookingReference, style: Theme.of(context).textTheme.titleLarge)),
                   const SizedBox(height: 4),
                   Center(child: Text('Status: ${_booking?['status']}', style: Theme.of(context).textTheme.bodyMedium)),
                   const SizedBox(height: 24),
-                  ..._tickets.map((t) => Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
+                  ..._tickets.map((t) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: AppCard(
                           child: Row(
                             children: [
                               Expanded(
@@ -93,15 +93,16 @@ class _BookingConfirmationScreenState extends ConsumerState<BookingConfirmationS
                               if (t.qrPayload != null)
                                 QrImageView(data: t.qrPayload!, size: 80)
                               else
-                                const SizedBox(width: 80, height: 80, child: Icon(Icons.qr_code_2, size: 48, color: Colors.grey)),
+                                const SizedBox(width: 80, height: 80, child: Icon(Icons.qr_code_2, size: 48, color: AppColors.textTertiary)),
                             ],
                           ),
                         ),
                       )),
                   const SizedBox(height: 16),
-                  OutlinedButton(
+                  AppButton(
+                    label: 'Back to home',
+                    variant: AppButtonVariant.outline,
                     onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                    child: const Text('Back to home'),
                   ),
                 ],
               ),

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -80,43 +81,43 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       appBar: AppBar(title: const Text('Verify your email')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
-              Icon(Icons.mark_email_read_outlined, size: 64, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
+              const Icon(Icons.mark_email_read_outlined, size: 64, color: AppColors.primary),
+              const SizedBox(height: AppSpacing.md),
               Text(
                 'Enter the 6-digit code we sent to ${widget.email}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 24),
-              TextFormField(
+              const SizedBox(height: AppSpacing.lg),
+              AppTextField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
+                hint: '000000',
                 maxLength: 6,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, letterSpacing: 8),
-                decoration: const InputDecoration(counterText: '', hintText: '000000'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(letterSpacing: 8),
               ),
               if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                const SizedBox(height: AppSpacing.sm),
+                Text(_error!, style: AppTypography.body(AppColors.error)),
               ],
               if (_info != null) ...[
-                const SizedBox(height: 8),
-                Text(_info!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                const SizedBox(height: AppSpacing.sm),
+                Text(_info!, style: AppTypography.body(AppColors.primary)),
               ],
-              const SizedBox(height: 16),
-              ElevatedButton(
+              const SizedBox(height: AppSpacing.md),
+              AppButton(
+                label: 'Verify',
                 onPressed: _verifying ? null : _verify,
-                child: _verifying
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Verify'),
+                loading: _verifying,
+                expand: true,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               TextButton(
                 onPressed: _resending ? null : _resend,
                 child: Text(_resending ? 'Sending…' : "Didn't get a code? Resend"),

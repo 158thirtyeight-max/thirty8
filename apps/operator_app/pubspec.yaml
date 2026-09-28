@@ -40,6 +40,8 @@ dependencies:
   intl: ^0.20.3
   mobile_scanner: ^7.0.1
   image_picker: ^1.1.2
+  design_system:
+    path: ../../packages/design_system
 
 dev_dependencies:
   flutter_test:

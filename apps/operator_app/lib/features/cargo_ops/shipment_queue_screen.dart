@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -80,9 +81,10 @@ class ShipmentQueueScreen extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(shipmentQueueProvider(context.operatorId)),
         child: shipmentsAsync.when(
           data: (shipments) => shipments.isEmpty
-              ? ListView(children: const [
-                  Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No active shipments right now.'))),
-                ])
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [AppEmptyState(message: 'No active shipments right now.', icon: Icons.inventory_2_outlined)],
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: shipments.length,
@@ -93,20 +95,29 @@ class ShipmentQueueScreen extends ConsumerWidget {
                     // shipment as accepted and ready for pickup.
                     final awaitingAcceptance = s['status'] == 'confirmed' && s['vehicle_id'] == null;
                     final displayStatus = awaitingAcceptance ? 'awaiting acceptance' : s['status'] as String;
-                    return Card(
-                      child: ListTile(
+                    return AppCard(
+                      padding: EdgeInsets.zero,
+                      child: AppListItem(
                         leading: const Icon(Icons.inventory_2_outlined),
-                        title: Text(s['shipment_reference'] as String),
-                        subtitle: Text('${s['weight_kg']} kg · $displayStatus · ₹${((s['total_fare_cents'] as int) / 100).toStringAsFixed(0)}'),
+                        title: s['shipment_reference'] as String,
+                        subtitle: '${s['weight_kg']} kg · ₹${((s['total_fare_cents'] as int) / 100).toStringAsFixed(0)}',
                         trailing: awaitingAcceptance
                             ? Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => _reject(buildContext, ref, s['id'] as String)),
-                                  IconButton(icon: const Icon(Icons.check, color: Colors.green), onPressed: () => _accept(buildContext, ref, s['id'] as String)),
+                                  AppBadge(status: displayStatus),
+                                  IconButton(icon: const Icon(Icons.close, color: AppColors.error), onPressed: () => _reject(buildContext, ref, s['id'] as String)),
+                                  IconButton(icon: const Icon(Icons.check, color: AppColors.success), onPressed: () => _accept(buildContext, ref, s['id'] as String)),
                                 ],
                               )
-                            : const Icon(Icons.chevron_right),
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AppBadge(status: displayStatus),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+                                ],
+                              ),
                         onTap: awaitingAcceptance
                             ? null
                             : () => Navigator.of(buildContext).push(
@@ -116,8 +127,11 @@ class ShipmentQueueScreen extends ConsumerWidget {
                     );
                   },
                 ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, st) => Center(child: Text('Could not load shipments: $e')),
+          loading: () => const AppLoadingState(),
+          error: (e, st) => AppErrorState(
+            message: 'Could not load shipments: $e',
+            onRetry: () => ref.invalidate(shipmentQueueProvider(context.operatorId)),
+          ),
         ),
       ),
     );

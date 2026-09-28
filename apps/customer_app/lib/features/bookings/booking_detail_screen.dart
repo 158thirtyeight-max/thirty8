@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -77,7 +78,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppLoadingState());
     }
 
     final booking = _booking!;
@@ -101,7 +102,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Status', style: Theme.of(context).textTheme.bodyMedium),
-                Text(status.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                AppBadge(status: status),
               ],
             ),
             const SizedBox(height: 4),
@@ -119,11 +120,14 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               final passenger = item['passengers'] as Map?;
               final boarding = item['boarding_points'] as Map?;
               final dropping = item['dropping_points'] as Map?;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(passenger?['full_name'] as String? ?? ''),
-                  subtitle: Text('Board: ${boarding?['name'] ?? '-'} → Drop: ${dropping?['name'] ?? '-'}'),
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: AppCard(
+                  padding: EdgeInsets.zero,
+                  child: AppListItem(
+                    title: passenger?['full_name'] as String? ?? '',
+                    subtitle: 'Board: ${boarding?['name'] ?? '-'} → Drop: ${dropping?['name'] ?? '-'}',
+                  ),
                 ),
               );
             }),
@@ -131,29 +135,33 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
             if (canTrack)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: OutlinedButton.icon(
+                child: AppButton(
+                  label: 'Track live location',
+                  icon: Icons.location_on_outlined,
+                  variant: AppButtonVariant.outline,
+                  expand: true,
                   onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LiveTrackingScreen(tripId: _tripId!))),
-                  icon: const Icon(Icons.location_on_outlined),
-                  label: const Text('Track live location'),
                 ),
               ),
             if (canRate)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: OutlinedButton.icon(
+                child: AppButton(
+                  label: 'Rate this trip',
+                  icon: Icons.star_outline,
+                  variant: AppButtonVariant.outline,
+                  expand: true,
                   onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RatingScreen(tripId: _tripId!))),
-                  icon: const Icon(Icons.star_outline),
-                  label: const Text('Rate this trip'),
                 ),
               ),
             if (canCancel)
-              OutlinedButton.icon(
+              AppButton(
+                label: 'Cancel booking',
+                icon: Icons.cancel_outlined,
+                variant: AppButtonVariant.destructive,
+                expand: true,
+                loading: _cancelling,
                 onPressed: _cancelling ? null : _cancel,
-                style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-                icon: _cancelling
-                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.cancel_outlined),
-                label: const Text('Cancel booking'),
               ),
           ],
         ),

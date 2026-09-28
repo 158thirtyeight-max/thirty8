@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -159,12 +160,11 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
                 Container(
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, borderRadius: AppRadius.mdRadius),
                   child: const Text('Your seat hold expired. Go back and select seats again.'),
                 ),
               for (int i = 0; i < widget.selectedSeats.length; i++) ...[
-                Text('Seat ${widget.selectedSeats[i]['seat_code']}', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
+                AppSectionHeader(title: 'Seat ${widget.selectedSeats[i]['seat_code']}'),
                 TextFormField(
                   controller: _nameControllers[i],
                   decoration: const InputDecoration(labelText: 'Full name'),
@@ -198,8 +198,7 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
                 ),
                 const SizedBox(height: 20),
               ],
-              Text('Contact details', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
+              const AppSectionHeader(title: 'Contact details'),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -214,11 +213,10 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
                 validator: (v) => (v == null || v.trim().length < 10) ? 'Enter a valid phone number' : null,
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
+              AppButton(
+                label: 'Proceed to payment',
+                loading: _submitting,
                 onPressed: (_expired || _submitting) ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Proceed to payment'),
               ),
             ],
           ),

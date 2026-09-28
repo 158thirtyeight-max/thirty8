@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -126,9 +127,9 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Select seats')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingState()
           : _error != null
-              ? Center(child: Text(_error!))
+              ? AppErrorState(message: _error!)
               : SafeArea(
                   child: Column(
                     children: [
@@ -159,11 +160,10 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
                                   style: Theme.of(context).textTheme.titleMedium,
                                 ),
                               ),
-                              ElevatedButton(
+                              AppButton(
+                                label: 'Continue',
+                                loading: _holding,
                                 onPressed: (_selectedSeatIds.isEmpty || _holding) ? null : _continue,
-                                child: _holding
-                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : const Text('Continue'),
                               ),
                             ],
                           ),

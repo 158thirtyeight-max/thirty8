@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -65,17 +66,20 @@ class TripDetailScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(fmt.format(DateTime.parse(trip['departure_at'] as String).toLocal()), style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 4),
-                        Text('Status: $status · ${trip['available_seats']} seats available'),
-                      ],
-                    ),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(fmt.format(DateTime.parse(trip['departure_at'] as String).toLocal()), style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          AppBadge(status: status),
+                          const SizedBox(width: 8),
+                          Text('${trip['available_seats']} seats available'),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -83,16 +87,17 @@ class TripDetailScreen extends ConsumerWidget {
                   children: [
                     if (nextStatus != null)
                       Expanded(
-                        child: ElevatedButton(
+                        child: AppButton(
+                          label: 'Mark as ${nextStatus[0].toUpperCase()}${nextStatus.substring(1)}',
                           onPressed: () => _updateStatus(context, ref, nextStatus),
-                          child: Text('Mark as ${nextStatus[0].toUpperCase()}${nextStatus.substring(1)}'),
                         ),
                       ),
                     if (status != 'cancelled' && status != 'arrived') ...[
                       const SizedBox(width: 8),
-                      OutlinedButton(
+                      AppButton(
+                        label: 'Cancel trip',
+                        variant: AppButtonVariant.outline,
                         onPressed: () => _updateStatus(context, ref, 'cancelled'),
-                        child: const Text('Cancel trip'),
                       ),
                     ],
                   ],
@@ -102,29 +107,33 @@ class TripDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 manifestAsync.when(
                   data: (passengers) => passengers.isEmpty
-                      ? const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('No confirmed passengers yet'))
+                      ? const AppEmptyState(message: 'No confirmed passengers yet', icon: Icons.people_outline)
                       : Column(
                           children: passengers.map((p) {
                             final row = p as Map<String, dynamic>;
-                            return Card(
-                              child: ListTile(
+                            return AppCard(
+                              padding: EdgeInsets.zero,
+                              child: AppListItem(
                                 leading: CircleAvatar(child: Text(row['seat_code'] as String)),
-                                title: Text(row['passenger_name'] as String? ?? 'Unnamed'),
-                                subtitle: Text('${row['boarding_point']} → ${row['dropping_point']}'),
+                                title: row['passenger_name'] as String? ?? 'Unnamed',
+                                subtitle: '${row['boarding_point']} → ${row['dropping_point']}',
                                 trailing: Text(row['seat_status'] as String? ?? ''),
                               ),
                             );
                           }).toList(),
                         ),
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, st) => Text('Could not load manifest: $e'),
+                  loading: () => const AppLoadingState(),
+                  error: (e, st) => AppErrorState(message: 'Could not load manifest: $e'),
                 ),
               ],
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Could not load trip: $e')),
+        loading: () => const AppLoadingState(),
+        error: (e, st) => AppErrorState(
+          message: 'Could not load trip: $e',
+          onRetry: () => ref.invalidate(tripProvider(tripId)),
+        ),
       ),
     );
   }

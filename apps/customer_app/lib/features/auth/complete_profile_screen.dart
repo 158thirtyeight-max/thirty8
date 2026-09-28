@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -93,14 +94,14 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  Text(_error!, style: TextStyle(color: AppColors.error)),
                 ],
                 const SizedBox(height: 24),
-                ElevatedButton(
+                AppButton(
+                  label: 'Continue',
                   onPressed: _loading ? null : _save,
-                  child: _loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Continue'),
+                  loading: _loading,
+                  expand: true,
                 ),
               ],
             ),

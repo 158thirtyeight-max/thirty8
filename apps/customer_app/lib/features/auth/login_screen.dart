@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -88,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 48),
-                  Text('Thirty8', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  Text('Thirty8', style: Theme.of(context).textTheme.headlineMedium),
                   const SizedBox(height: 8),
                   Text('Bus tickets & cargo across the islands', style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 40),
@@ -107,14 +108,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    Text(_error!, style: TextStyle(color: AppColors.error)),
                   ],
                   const SizedBox(height: 24),
-                  ElevatedButton(
+                  AppButton(
+                    label: 'Log in',
                     onPressed: _loading ? null : _login,
-                    child: _loading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Log in'),
+                    loading: _loading,
+                    expand: true,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -128,12 +129,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
+                  AppButton(
+                    label: 'Continue with Google',
                     onPressed: _googleLoading ? null : _loginWithGoogle,
-                    icon: _googleLoading
-                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.g_mobiledata, size: 28),
-                    label: const Text('Continue with Google'),
+                    loading: _googleLoading,
+                    variant: AppButtonVariant.outline,
+                    icon: Icons.g_mobiledata,
+                    expand: true,
                   ),
                   const SizedBox(height: 16),
                   TextButton(

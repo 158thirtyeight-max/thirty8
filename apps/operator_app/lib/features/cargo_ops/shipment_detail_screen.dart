@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -56,7 +57,7 @@ class _ShipmentDetailScreenState extends ConsumerState<ShipmentDetailScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Recipient name'),
-        content: TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Who received it?')),
+        content: AppTextField(controller: nameController, label: 'Who received it?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialogContext, nameController.text.trim()), child: const Text('Continue')),
@@ -110,59 +111,61 @@ class _ShipmentDetailScreenState extends ConsumerState<ShipmentDetailScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(s['shipment_reference'] as String, style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 8),
-                      Text('Status: $status'),
-                      Text('Weight: ${s['weight_kg']} kg'),
-                      Text('Total fare: ₹${((s['total_fare_cents'] as int) / 100).toStringAsFixed(0)}'),
-                    ],
-                  ),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(s['shipment_reference'] as String, style: Theme.of(context).textTheme.titleLarge)),
+                        AppBadge(status: status),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Weight: ${s['weight_kg']} kg'),
+                    Text('Total fare: ₹${((s['total_fare_cents'] as int) / 100).toStringAsFixed(0)}'),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Pickup', style: Theme.of(context).textTheme.titleSmall),
-                      Text(s['pickup_address'] as String? ?? 'Hub pickup'),
-                      Text('${s['pickup_contact_name']} · ${s['pickup_contact_phone']}'),
-                      const Divider(height: 24),
-                      Text('Delivery', style: Theme.of(context).textTheme.titleSmall),
-                      Text(s['delivery_address'] as String? ?? 'Hub delivery'),
-                      Text('${s['delivery_contact_name']} · ${s['delivery_contact_phone']}'),
-                    ],
-                  ),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Pickup', style: Theme.of(context).textTheme.titleSmall),
+                    Text(s['pickup_address'] as String? ?? 'Hub pickup'),
+                    Text('${s['pickup_contact_name']} · ${s['pickup_contact_phone']}'),
+                    const Divider(height: 24),
+                    Text('Delivery', style: Theme.of(context).textTheme.titleSmall),
+                    Text(s['delivery_address'] as String? ?? 'Hub delivery'),
+                    Text('${s['delivery_contact_name']} · ${s['delivery_contact_phone']}'),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
               if (_busy)
-                const Center(child: CircularProgressIndicator())
+                const AppLoadingState()
               else ...[
                 if (status == 'confirmed')
-                  ElevatedButton.icon(icon: const Icon(Icons.camera_alt), onPressed: _confirmPickup, label: const Text('Confirm pickup (photo)')),
+                  AppButton(label: 'Confirm pickup (photo)', icon: Icons.camera_alt, onPressed: _confirmPickup, expand: true),
                 if (status == 'picked_up')
-                  ElevatedButton(onPressed: () => _advanceStatus('in_transit'), child: const Text('Mark in transit')),
+                  AppButton(label: 'Mark in transit', onPressed: () => _advanceStatus('in_transit'), expand: true),
                 if (status == 'in_transit')
-                  ElevatedButton(onPressed: () => _advanceStatus('arrived_at_hub'), child: const Text('Mark arrived at hub')),
+                  AppButton(label: 'Mark arrived at hub', onPressed: () => _advanceStatus('arrived_at_hub'), expand: true),
                 if (status == 'arrived_at_hub')
-                  ElevatedButton(onPressed: () => _advanceStatus('out_for_delivery'), child: const Text('Mark out for delivery')),
+                  AppButton(label: 'Mark out for delivery', onPressed: () => _advanceStatus('out_for_delivery'), expand: true),
                 if (status == 'out_for_delivery')
-                  ElevatedButton.icon(icon: const Icon(Icons.camera_alt), onPressed: _confirmDelivery, label: const Text('Confirm delivery (photo)')),
+                  AppButton(label: 'Confirm delivery (photo)', icon: Icons.camera_alt, onPressed: _confirmDelivery, expand: true),
               ],
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Could not load shipment: $e')),
+        loading: () => const AppLoadingState(),
+        error: (e, st) => AppErrorState(
+          message: 'Could not load shipment: $e',
+          onRetry: () => ref.invalidate(shipmentProvider(widget.shipmentId)),
+        ),
       ),
     );
   }

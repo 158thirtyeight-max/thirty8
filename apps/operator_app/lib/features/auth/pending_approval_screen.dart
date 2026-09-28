@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,14 +39,16 @@ class PendingApprovalScreen extends ConsumerWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                OutlinedButton(
+                AppButton(
+                  label: 'Check again',
+                  variant: AppButtonVariant.outline,
                   onPressed: () => ref.invalidate(operatorContextProvider),
-                  child: const Text('Check again'),
                 ),
                 const SizedBox(height: 8),
-                TextButton(
+                AppButton(
+                  label: 'Sign out',
+                  variant: AppButtonVariant.ghost,
                   onPressed: () => ref.read(supabaseProvider).auth.signOut(),
-                  child: const Text('Sign out'),
                 ),
               ],
             ),

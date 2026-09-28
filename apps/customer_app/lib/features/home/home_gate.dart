@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,7 +19,7 @@ class HomeGate extends ConsumerWidget {
 
     return isCompleteAsync.when(
       data: (isComplete) => isComplete ? const HomeShell() : const CompleteProfileScreen(),
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: Center(child: AppLoadingState())),
       error: (e, st) => const HomeShell(),
     );
   }

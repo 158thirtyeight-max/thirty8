@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { PageTitle, StatCard, Table, Td, Th } from "@/components/ui";
+import { EmptyState, PageTitle, SectionHeader, StatCard, Table, Td, Th } from "@/components/ui";
 
 export default async function RevenuePage() {
   const supabase = await createClient();
@@ -29,7 +29,7 @@ export default async function RevenuePage() {
         <StatCard label="Net revenue" value={`₹${((totalCaptured - totalRefunded) / 100).toLocaleString("en-IN")}`} />
       </div>
 
-      <h3 className="mb-3 text-sm font-medium text-slate-300">Last 14 days with activity</h3>
+      <SectionHeader title="Last 14 days with activity" />
       <Table>
         <thead>
           <tr>
@@ -46,7 +46,7 @@ export default async function RevenuePage() {
           ))}
         </tbody>
       </Table>
-      {!dailyRows.length && <p className="mt-2 text-sm text-slate-500">No captured payments yet.</p>}
+      {!dailyRows.length && <EmptyState message="No captured payments yet." />}
     </div>
   );
 }

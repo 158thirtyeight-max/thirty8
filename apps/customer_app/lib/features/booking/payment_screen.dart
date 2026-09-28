@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -132,21 +133,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 32),
-              if (_creatingOrder) const CircularProgressIndicator(),
-              if (_error != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.errorContainer, borderRadius: BorderRadius.circular(8)),
-                  child: Text(_error!, textAlign: TextAlign.center),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(onPressed: _createOrder, child: const Text('Retry')),
-              ] else if (!_creatingOrder && _razorpayOrder != null)
-                ElevatedButton(
+              if (_creatingOrder) const AppLoadingState(),
+              if (_error != null)
+                AppErrorState(message: _error!, onRetry: _createOrder)
+              else if (!_creatingOrder && _razorpayOrder != null)
+                AppButton(
+                  label: 'Pay now',
+                  loading: _paying,
                   onPressed: _paying ? null : _pay,
-                  child: _paying
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Pay now'),
                 ),
             ],
           ),

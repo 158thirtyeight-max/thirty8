@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -97,11 +98,11 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
                   Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 ],
                 const SizedBox(height: 24),
-                ElevatedButton(
+                AppButton(
+                  label: 'Save route',
                   onPressed: _loading ? null : _save,
-                  child: _loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Save route'),
+                  loading: _loading,
+                  expand: true,
                 ),
               ],
             ),

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -108,11 +109,11 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
                 Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ],
               const SizedBox(height: 24),
-              ElevatedButton(
+              AppButton(
+                label: 'Schedule trip',
                 onPressed: _loading ? null : _save,
-                child: _loading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Schedule trip'),
+                loading: _loading,
+                expand: true,
               ),
             ],
           ),

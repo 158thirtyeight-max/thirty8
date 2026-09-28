@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,13 +20,15 @@ class ShipmentConfirmationScreen extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle, size: 64, color: Colors.green.shade600),
+              const Icon(Icons.check_circle, size: 64, color: AppColors.success),
               const SizedBox(height: 12),
               Text(shipmentReference, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 4),
               const Text('Your shipment has been confirmed and is awaiting pickup.'),
               const SizedBox(height: 24),
-              ElevatedButton(
+              AppButton(
+                label: 'Track shipment',
+                expand: true,
                 onPressed: () async {
                   final supabase = ref.read(supabaseProvider);
                   final shipment = await supabase.from('cargo_shipments').select('id').eq('shipment_reference', shipmentReference).single();
@@ -34,12 +37,13 @@ class ShipmentConfirmationScreen extends ConsumerWidget {
                     MaterialPageRoute(builder: (_) => ShipmentDetailScreen(shipmentId: shipment['id'] as String)),
                   );
                 },
-                child: const Text('Track shipment'),
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
+              AppButton(
+                label: 'Back to home',
+                variant: AppButtonVariant.outline,
+                expand: true,
                 onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                child: const Text('Back to home'),
               ),
             ],
           ),

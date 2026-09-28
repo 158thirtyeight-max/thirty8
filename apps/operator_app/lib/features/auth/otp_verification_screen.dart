@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -110,11 +111,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 Text(_info!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
               ],
               const SizedBox(height: 16),
-              ElevatedButton(
+              AppButton(
+                label: 'Verify',
                 onPressed: _verifying ? null : _verify,
-                child: _verifying
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Verify'),
+                loading: _verifying,
+                expand: true,
               ),
               const SizedBox(height: 8),
               TextButton(

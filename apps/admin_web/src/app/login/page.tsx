@@ -1,4 +1,5 @@
 import { login } from "./actions";
+import { Button } from "@/components/ui";
 
 export default async function LoginPage({
   searchParams,
@@ -8,16 +9,16 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-white">Thirty8 Admin</h1>
-          <p className="mt-1 text-sm text-slate-400">Platform control panel</p>
+          <h1 className="text-2xl font-semibold text-text-primary">Thirty8 Admin</h1>
+          <p className="mt-1 text-sm text-text-secondary">Platform control panel</p>
         </div>
 
-        <form action={login} className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <form action={login} className="space-y-4 rounded-xl border border-border bg-surface p-6">
           <div>
-            <label className="mb-1 block text-sm text-slate-300" htmlFor="email">
+            <label className="mb-1 block text-sm text-text-secondary" htmlFor="email">
               Email
             </label>
             <input
@@ -25,11 +26,11 @@ export default async function LoginPage({
               name="email"
               type="email"
               required
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white outline-none focus:border-indigo-500"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-text-primary outline-none focus:border-primary"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-slate-300" htmlFor="password">
+            <label className="mb-1 block text-sm text-text-secondary" htmlFor="password">
               Password
             </label>
             <input
@@ -37,22 +38,19 @@ export default async function LoginPage({
               name="password"
               type="password"
               required
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white outline-none focus:border-indigo-500"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-text-primary outline-none focus:border-primary"
             />
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">
+            <p className="rounded-lg bg-error/15 px-3 py-2 text-sm text-error">
               {error === "not_authorized" ? "That account is not a platform admin." : error}
             </p>
           )}
 
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-indigo-600 px-3 py-2 font-medium text-white transition hover:bg-indigo-500"
-          >
+          <Button type="submit" className="w-full">
             Log in
-          </button>
+          </Button>
         </form>
       </div>
     </div>

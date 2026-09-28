@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -32,9 +33,9 @@ class ProfileTab extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: providerController, decoration: const InputDecoration(labelText: 'Insurance provider')),
+                AppTextField(controller: providerController, label: 'Insurance provider'),
                 const SizedBox(height: 8),
-                TextField(controller: policyController, decoration: const InputDecoration(labelText: 'Policy number')),
+                AppTextField(controller: policyController, label: 'Policy number'),
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -102,21 +103,23 @@ class ProfileTab extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(op['name'] as String, style: Theme.of(buildContext).textTheme.titleLarge),
-                  Text(op['legal_name'] as String? ?? '', style: Theme.of(buildContext).textTheme.bodySmall),
-                  const SizedBox(height: 8),
-                  Text('Business type: ${op['business_type']}'),
-                  Text('Status: ${op['status']}'),
-                  Text('Contact: ${op['contact_email']} · ${op['contact_phone']}'),
-                  Text('Your role: ${context.role}'),
-                ],
-              ),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: Text(op['name'] as String, style: Theme.of(buildContext).textTheme.titleLarge)),
+                    AppBadge(status: op['status'] as String),
+                  ],
+                ),
+                Text(op['legal_name'] as String? ?? '', style: Theme.of(buildContext).textTheme.bodySmall),
+                const SizedBox(height: 8),
+                Text('Business type: ${op['business_type']}'),
+                Text('Contact: ${op['contact_email']} · ${op['contact_phone']}'),
+                Text('Your role: ${context.role}'),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -132,22 +135,25 @@ class ProfileTab extends ConsumerWidget {
                 ? const Padding(padding: EdgeInsets.all(8), child: Text('No insurance policies on file yet'))
                 : Column(
                     children: policies
-                        .map((p) => Card(
-                              child: ListTile(
+                        .map((p) => AppCard(
+                              padding: EdgeInsets.zero,
+                              child: AppListItem(
                                 leading: const Icon(Icons.shield_outlined),
-                                title: Text('${p['insurance_provider']} · ${p['policy_number']}'),
-                                subtitle: Text('${p['valid_from']} → ${p['valid_until']} · ${p['status']}'),
+                                title: '${p['insurance_provider']} · ${p['policy_number']}',
+                                subtitle: '${p['valid_from']} → ${p['valid_until']}',
+                                trailing: AppBadge(status: p['status'] as String),
                               ),
                             ))
                         .toList(),
                   ),
-            loading: () => const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
+            loading: () => const Padding(padding: EdgeInsets.all(16), child: AppLoadingState()),
             error: (e, st) => Text('Error: $e'),
           ),
           const SizedBox(height: 32),
-          OutlinedButton(
+          AppButton(
+            label: 'Sign out',
+            variant: AppButtonVariant.outline,
             onPressed: () => ref.read(supabaseProvider).auth.signOut(),
-            child: const Text('Sign out'),
           ),
         ],
       ),

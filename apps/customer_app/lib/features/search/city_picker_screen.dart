@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -74,16 +75,16 @@ class _CityPickerScreenState extends ConsumerState<CityPickerScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingState())
           : ListView.separated(
               itemCount: _results.length,
               separatorBuilder: (a, b) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final city = _results[index];
-                return ListTile(
+                return AppListItem(
                   leading: const Icon(Icons.location_on_outlined),
-                  title: Text(city.name),
-                  subtitle: city.state != null ? Text(city.state!) : null,
+                  title: city.name,
+                  subtitle: city.state,
                   onTap: () => Navigator.of(context).pop(city),
                 );
               },

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -182,12 +183,12 @@ class _NewShipmentScreenState extends ConsumerState<NewShipmentScreen> {
                 child: Row(
                   children: [
                     if (_step > 0)
-                      Expanded(child: OutlinedButton(onPressed: () => setState(() => _step--), child: const Text('Back'))),
+                      Expanded(child: AppButton(label: 'Back', variant: AppButtonVariant.outline, onPressed: () => setState(() => _step--))),
                     if (_step > 0) const SizedBox(width: 12),
                     Expanded(
-                      child: ElevatedButton(
+                      child: AppButton(
+                        label: _step == _stepTitles.length - 1 ? 'Get quote' : 'Next',
                         onPressed: _canGoNext ? _next : null,
-                        child: Text(_step == _stepTitles.length - 1 ? 'Get quote' : 'Next'),
                       ),
                     ),
                   ],
@@ -206,18 +207,22 @@ class _NewShipmentScreenState extends ConsumerState<NewShipmentScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ListTile(
-              tileColor: Theme.of(context).colorScheme.surfaceContainerLow,
-              leading: const Icon(Icons.trip_origin),
-              title: Text(_source?.name ?? 'Origin city'),
-              onTap: () => _pickCity(isSource: true),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: AppListItem(
+                leading: const Icon(Icons.trip_origin),
+                title: _source?.name ?? 'Origin city',
+                onTap: () => _pickCity(isSource: true),
+              ),
             ),
             const SizedBox(height: 8),
-            ListTile(
-              tileColor: Theme.of(context).colorScheme.surfaceContainerLow,
-              leading: const Icon(Icons.location_on),
-              title: Text(_destination?.name ?? 'Destination city'),
-              onTap: () => _pickCity(isSource: false),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: AppListItem(
+                leading: const Icon(Icons.location_on),
+                title: _destination?.name ?? 'Destination city',
+                onTap: () => _pickCity(isSource: false),
+              ),
             ),
           ],
         );
@@ -234,29 +239,29 @@ class _NewShipmentScreenState extends ConsumerState<NewShipmentScreen> {
               onChanged: (v) => setState(() => _cargoType = v),
             ),
             const SizedBox(height: 12),
-            TextField(
+            AppTextField(
               controller: _weightController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Weight (kg)'),
+              label: 'Weight (kg)',
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: TextField(controller: _lengthController, decoration: const InputDecoration(labelText: 'L (cm)'), keyboardType: TextInputType.number)),
+                Expanded(child: AppTextField(controller: _lengthController, label: 'L (cm)', keyboardType: TextInputType.number)),
                 const SizedBox(width: 8),
-                Expanded(child: TextField(controller: _widthController, decoration: const InputDecoration(labelText: 'W (cm)'), keyboardType: TextInputType.number)),
+                Expanded(child: AppTextField(controller: _widthController, label: 'W (cm)', keyboardType: TextInputType.number)),
                 const SizedBox(width: 8),
-                Expanded(child: TextField(controller: _heightController, decoration: const InputDecoration(labelText: 'H (cm)'), keyboardType: TextInputType.number)),
+                Expanded(child: AppTextField(controller: _heightController, label: 'H (cm)', keyboardType: TextInputType.number)),
               ],
             ),
             const SizedBox(height: 12),
-            TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (optional)')),
+            AppTextField(controller: _descriptionController, label: 'Description (optional)'),
             const SizedBox(height: 12),
-            TextField(
+            AppTextField(
               controller: _declaredValueController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Declared value ₹ (optional)'),
+              label: 'Declared value ₹ (optional)',
             ),
           ],
         );
@@ -338,9 +343,9 @@ class _NewShipmentScreenState extends ConsumerState<NewShipmentScreen> {
         ),
         const SizedBox(height: 16),
         if (type == 'address')
-          TextField(controller: addressController, maxLines: 2, decoration: const InputDecoration(labelText: 'Address'), onChanged: (_) => setState(() {}))
+          AppTextField(controller: addressController, maxLines: 2, label: 'Address', onChanged: (_) => setState(() {}))
         else if (hubs.isEmpty)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('No hubs available in this city yet.'))
+          const AppEmptyState(message: 'No hubs available in this city yet.', icon: Icons.warehouse_outlined)
         else
           DropdownButtonFormField<Map<String, dynamic>>(
             initialValue: selectedHub,
@@ -349,9 +354,9 @@ class _NewShipmentScreenState extends ConsumerState<NewShipmentScreen> {
             onChanged: onHubChanged,
           ),
         const SizedBox(height: 12),
-        TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Contact name')),
+        AppTextField(controller: nameController, label: 'Contact name'),
         const SizedBox(height: 12),
-        TextField(controller: phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Contact phone')),
+        AppTextField(controller: phoneController, keyboardType: TextInputType.phone, label: 'Contact phone'),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -112,11 +113,11 @@ class _RegisterOperatorScreenState extends ConsumerState<RegisterOperatorScreen>
                   Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 ],
                 const SizedBox(height: 24),
-                ElevatedButton(
+                AppButton(
+                  label: 'Submit for review',
                   onPressed: _loading ? null : _register,
-                  child: _loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Submit for review'),
+                  loading: _loading,
+                  expand: true,
                 ),
               ],
             ),

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -68,8 +69,8 @@ class _ShipmentDetailScreenState extends ConsumerState<ShipmentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_shipment == null) return const Scaffold(body: Center(child: Text('Shipment not found')));
+    if (_loading) return const Scaffold(body: AppLoadingState());
+    if (_shipment == null) return const Scaffold(body: AppEmptyState(message: 'Shipment not found', icon: Icons.search_off_outlined));
 
     final shipment = _shipment!;
     final status = shipment['status'] as String;
@@ -86,7 +87,7 @@ class _ShipmentDetailScreenState extends ConsumerState<ShipmentDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Status', style: Theme.of(context).textTheme.bodyMedium),
-                Text(status.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                AppBadge(status: status),
               ],
             ),
             const SizedBox(height: 4),
@@ -98,36 +99,35 @@ class _ShipmentDetailScreenState extends ConsumerState<ShipmentDetailScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Pickup', style: Theme.of(context).textTheme.titleSmall),
-                    Text(shipment['pickup_type'] == 'address' ? (shipment['pickup_address'] as String? ?? '') : 'Hub drop-off'),
-                    const SizedBox(height: 12),
-                    Text('Delivery', style: Theme.of(context).textTheme.titleSmall),
-                    Text(shipment['delivery_type'] == 'address' ? (shipment['delivery_address'] as String? ?? '') : 'Hub pickup'),
-                  ],
-                ),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Pickup', style: Theme.of(context).textTheme.titleSmall),
+                  Text(shipment['pickup_type'] == 'address' ? (shipment['pickup_address'] as String? ?? '') : 'Hub drop-off'),
+                  const SizedBox(height: 12),
+                  Text('Delivery', style: Theme.of(context).textTheme.titleSmall),
+                  Text(shipment['delivery_type'] == 'address' ? (shipment['delivery_address'] as String? ?? '') : 'Hub pickup'),
+                ],
               ),
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
+            AppButton(
+              label: 'Track shipment',
+              icon: Icons.local_shipping_outlined,
+              variant: AppButtonVariant.outline,
+              expand: true,
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShipmentTrackingScreen(shipmentId: widget.shipmentId))),
-              icon: const Icon(Icons.local_shipping_outlined),
-              label: const Text('Track shipment'),
             ),
             if (canCancel) ...[
               const SizedBox(height: 12),
-              OutlinedButton.icon(
+              AppButton(
+                label: 'Cancel shipment',
+                icon: Icons.cancel_outlined,
+                variant: AppButtonVariant.destructive,
+                expand: true,
+                loading: _cancelling,
                 onPressed: _cancelling ? null : _cancel,
-                style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-                icon: _cancelling
-                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.cancel_outlined),
-                label: const Text('Cancel shipment'),
               ),
             ],
           ],

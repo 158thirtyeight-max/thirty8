@@ -40,6 +40,8 @@ dependencies:
   intl: ^0.20.3
   razorpay_flutter: ^1.4.7
   qr_flutter: ^4.1.0
+  design_system:
+    path: ../../packages/design_system
 
 dev_dependencies:
   flutter_test:

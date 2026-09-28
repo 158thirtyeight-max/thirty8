@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -53,7 +54,7 @@ class _NotificationsTabState extends ConsumerState<NotificationsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: AppLoadingState());
 
     return SafeArea(
       child: RefreshIndicator(
@@ -62,9 +63,7 @@ class _NotificationsTabState extends ConsumerState<NotificationsTab> {
             ? ListView(
                 children: const [
                   SizedBox(height: 120),
-                  Icon(Icons.notifications_off_outlined, size: 48, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Center(child: Text('No notifications yet')),
+                  AppEmptyState(message: 'No notifications yet', icon: Icons.notifications_off_outlined),
                 ],
               )
             : ListView.separated(
@@ -74,13 +73,13 @@ class _NotificationsTabState extends ConsumerState<NotificationsTab> {
                 itemBuilder: (context, index) {
                   final n = _items[index];
                   final isRead = n['is_read'] as bool? ?? false;
-                  return ListTile(
+                  return AppListItem(
                     leading: Icon(
                       isRead ? Icons.notifications_none : Icons.notifications,
-                      color: isRead ? Colors.grey : Theme.of(context).colorScheme.primary,
+                      color: isRead ? AppColors.textTertiary : AppColors.primary,
                     ),
-                    title: Text(n['title'] as String? ?? '', style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold)),
-                    subtitle: Text(n['body'] as String? ?? ''),
+                    title: n['title'] as String? ?? '',
+                    subtitle: n['body'] as String? ?? '',
                     trailing: Text(DateFormat('d MMM').format(DateTime.parse(n['created_at'] as String))),
                     onTap: () => _markRead(n['id'] as String),
                   );

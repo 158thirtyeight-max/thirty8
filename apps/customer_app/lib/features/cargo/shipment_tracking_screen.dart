@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -54,33 +55,29 @@ class _ShipmentTrackingScreenState extends ConsumerState<ShipmentTrackingScreen>
     return Scaffold(
       appBar: AppBar(title: const Text('Track shipment')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingState()
           : _data == null
-              ? const Center(child: Text('Tracking is not available.'))
+              ? const AppEmptyState(message: 'Tracking is not available.', icon: Icons.gps_off_outlined)
               : SafeArea(
                   child: ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     children: [
                       _StatusStepper(status: _data!['status'] as String, statusOrder: _statusOrder),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.md),
                       if (_data!['current_latitude'] != null)
-                        Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.gps_fixed),
-                            title: Text('${_data!['current_latitude']}, ${_data!['current_longitude']}'),
-                            subtitle: _data!['last_location_update'] != null
-                                ? Text('Updated ${DateFormat('h:mm a').format(DateTime.parse(_data!['last_location_update'] as String).toLocal())}')
-                                : null,
-                          ),
+                        AppListItem(
+                          leading: const Icon(Icons.gps_fixed, color: AppColors.primary),
+                          title: '${_data!['current_latitude']}, ${_data!['current_longitude']}',
+                          subtitle: _data!['last_location_update'] != null
+                              ? 'Updated ${DateFormat('h:mm a').format(DateTime.parse(_data!['last_location_update'] as String).toLocal())}'
+                              : null,
                         ),
-                      const SizedBox(height: 16),
-                      Text('Timeline', style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: 8),
-                      ...List<Map<String, dynamic>>.from(_data!['status_history'] as List).map((h) => ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.check_circle_outline, size: 20),
-                            title: Text((h['to_status'] as String).replaceAll('_', ' ')),
-                            subtitle: Text(DateFormat('d MMM, h:mm a').format(DateTime.parse(h['created_at'] as String).toLocal())),
+                      const SizedBox(height: AppSpacing.md),
+                      AppSectionHeader(title: 'Timeline'),
+                      ...List<Map<String, dynamic>>.from(_data!['status_history'] as List).map((h) => AppListItem(
+                            leading: const Icon(Icons.check_circle_outline, size: 20, color: AppColors.success),
+                            title: (h['to_status'] as String).replaceAll('_', ' '),
+                            subtitle: DateFormat('d MMM, h:mm a').format(DateTime.parse(h['created_at'] as String).toLocal()),
                           )),
                     ],
                   ),
@@ -98,11 +95,13 @@ class _StatusStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (status == 'cancelled' || status == 'failed') {
-      return Card(
-        color: Theme.of(context).colorScheme.errorContainer,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text('Shipment ${status == 'cancelled' ? 'cancelled' : 'failed'}', style: const TextStyle(fontWeight: FontWeight.bold)),
+      return AppCard(
+        child: Row(
+          children: [
+            AppBadge(status: status),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Shipment ${status == 'cancelled' ? 'cancelled' : 'failed'}', style: Theme.of(context).textTheme.bodyMedium),
+          ],
         ),
       );
     }
@@ -116,14 +115,14 @@ class _StatusStepper extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 10,
-                backgroundColor: reached ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+                backgroundColor: reached ? AppColors.primary : AppColors.disabled,
                 child: reached ? const Icon(Icons.check, size: 12, color: Colors.white) : null,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.xs),
               Text(
                 statusOrder[i].replaceAll('_', ' '),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 9, color: reached ? Theme.of(context).colorScheme.primary : Colors.grey),
+                style: AppTypography.caption(reached ? AppColors.primary : AppColors.textTertiary),
               ),
             ],
           ),

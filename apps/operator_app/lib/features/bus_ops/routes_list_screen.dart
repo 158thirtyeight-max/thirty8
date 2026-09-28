@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,9 +30,10 @@ class RoutesListScreen extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(busRoutesProvider(context.operatorId)),
         child: routesAsync.when(
           data: (routes) => routes.isEmpty
-              ? ListView(children: const [
-                  Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No routes yet — add your first route.'))),
-                ])
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [AppEmptyState(message: 'No routes yet — add your first route.', icon: Icons.alt_route)],
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: routes.length,
@@ -39,12 +41,12 @@ class RoutesListScreen extends ConsumerWidget {
                     final route = routes[i];
                     final source = route['source']?['name'] as String? ?? '?';
                     final dest = route['destination']?['name'] as String? ?? '?';
-                    return Card(
-                      child: ListTile(
+                    return AppCard(
+                      padding: EdgeInsets.zero,
+                      child: AppListItem(
                         leading: const Icon(Icons.alt_route),
-                        title: Text('$source → $dest'),
-                        subtitle: Text(route['distance_km'] != null ? '${route['distance_km']} km' : 'Distance not set'),
-                        trailing: const Icon(Icons.chevron_right),
+                        title: '$source → $dest',
+                        subtitle: route['distance_km'] != null ? '${route['distance_km']} km' : 'Distance not set',
                         onTap: () => Navigator.of(buildContext).push(
                           MaterialPageRoute(builder: (_) => RoutePointsScreen(routeId: route['id'] as String, routeLabel: '$source → $dest')),
                         ),
@@ -52,8 +54,11 @@ class RoutesListScreen extends ConsumerWidget {
                     );
                   },
                 ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, st) => Center(child: Text('Could not load routes: $e')),
+          loading: () => const AppLoadingState(),
+          error: (e, st) => AppErrorState(
+            message: 'Could not load routes: $e',
+            onRetry: () => ref.invalidate(busRoutesProvider(context.operatorId)),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

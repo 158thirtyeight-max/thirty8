@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -61,23 +62,21 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
       body: SafeArea(
         child: Builder(
           builder: (context) {
-            if (_loading) return const Center(child: CircularProgressIndicator());
-            if (_error != null) return Center(child: Text(_error!));
+            if (_loading) return const AppLoadingState();
+            if (_error != null) return AppErrorState(message: _error!, onRetry: _search);
             if (_direct.isEmpty && _connected.isEmpty) {
-              return const Center(child: Text('No buses found for this route on this date'));
+              return const AppEmptyState(message: 'No buses found for this route on this date', icon: Icons.directions_bus_filled_outlined);
             }
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.md),
               children: [
                 if (_direct.isNotEmpty) ...[
-                  Text('Direct', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  AppSectionHeader(title: 'Direct'),
                   ..._direct.map((t) => _DirectTripCard(trip: t)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                 ],
                 if (_connected.isNotEmpty) ...[
-                  Text('With a change', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  AppSectionHeader(title: 'With a change'),
                   ..._connected.map((c) => _ConnectedTripCard(connection: c)),
                 ],
               ],
@@ -99,49 +98,45 @@ class _DirectTripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fare = ((trip['min_fare_cents'] as int?) ?? 0) / 100;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(trip['operator_name'] as String? ?? 'Operator', style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text('₹${fare.toStringAsFixed(0)}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text((trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text(_time(trip['departure_at'] as String), style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(width: 8),
-                const Expanded(child: Divider()),
-                const SizedBox(width: 8),
-                Text('${trip['available_seats']} seats left', style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(width: 8),
-                const Expanded(child: Divider()),
-                const SizedBox(width: 8),
-                Text(_time(trip['arrival_at'] as String), style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => BusDetailsScreen(trip: trip)),
-                  );
-                },
-                child: const Text('Select seats'),
-              ),
-            ),
-          ],
-        ),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(trip['operator_name'] as String? ?? 'Operator', style: Theme.of(context).textTheme.titleSmall),
+              Text('₹${fare.toStringAsFixed(0)}', style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text((trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Text(_time(trip['departure_at'] as String), style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(width: AppSpacing.sm),
+              const Expanded(child: Divider()),
+              const SizedBox(width: AppSpacing.sm),
+              Text('${trip['available_seats']} seats left', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(width: AppSpacing.sm),
+              const Expanded(child: Divider()),
+              const SizedBox(width: AppSpacing.sm),
+              Text(_time(trip['arrival_at'] as String), style: Theme.of(context).textTheme.titleSmall),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            label: 'Select seats',
+            variant: AppButtonVariant.outline,
+            expand: true,
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => BusDetailsScreen(trip: trip)),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -158,28 +153,30 @@ class _ConnectedTripCard extends StatelessWidget {
     final leg2 = connection['leg2'] as Map<String, dynamic>;
     final total = ((connection['total_min_fare_cents'] as int?) ?? 0) / 100;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Change required', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('₹${total.toStringAsFixed(0)}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text('${leg1['operator_name']} · ${_time(leg1['departure_at'] as String)} → ${_time(leg1['arrival_at'] as String)}'),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: Row(children: [Icon(Icons.swap_horiz, size: 16, color: Colors.grey), SizedBox(width: 4), Text('Change buses', style: TextStyle(color: Colors.grey, fontSize: 12))]),
-            ),
-            Text('${leg2['operator_name']} · ${_time(leg2['departure_at'] as String)} → ${_time(leg2['arrival_at'] as String)}'),
-          ],
-        ),
+    final textTheme = Theme.of(context).textTheme;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Change required', style: textTheme.titleSmall),
+              Text('₹${total.toStringAsFixed(0)}', style: textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('${leg1['operator_name']} · ${_time(leg1['departure_at'] as String)} → ${_time(leg1['arrival_at'] as String)}'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Row(children: [
+              const Icon(Icons.swap_horiz, size: 16, color: AppColors.textTertiary),
+              const SizedBox(width: AppSpacing.xs),
+              Text('Change buses', style: textTheme.bodySmall?.copyWith(color: AppColors.textTertiary)),
+            ]),
+          ),
+          Text('${leg2['operator_name']} · ${_time(leg2['departure_at'] as String)} → ${_time(leg2['arrival_at'] as String)}'),
+        ],
       ),
     );
   }

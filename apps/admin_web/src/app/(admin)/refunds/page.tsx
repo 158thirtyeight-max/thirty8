@@ -47,7 +47,7 @@ export default async function RefundsPage() {
             <tr key={r.id}>
               <Td className="font-mono">
                 {r.payments?.orders?.order_reference}
-                <div className="font-sans text-slate-500 capitalize">{r.payments?.orders?.orderable_type?.replace(/_/g, " ")}</div>
+                <div className="font-sans text-text-tertiary capitalize">{r.payments?.orders?.orderable_type?.replace(/_/g, " ")}</div>
               </Td>
               <Td>{r.payments?.orders?.profiles?.full_name ?? r.payments?.orders?.profiles?.email ?? "—"}</Td>
               <Td>₹{(r.amount_cents / 100).toLocaleString("en-IN")}</Td>

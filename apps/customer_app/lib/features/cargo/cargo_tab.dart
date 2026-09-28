@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -47,21 +48,9 @@ class _CargoTabState extends ConsumerState<CargoTab> {
     }
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'delivered':
-        return Colors.green;
-      case 'cancelled':
-      case 'failed':
-        return Colors.red;
-      default:
-        return Theme.of(context).colorScheme.primary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const AppLoadingState();
 
     return SafeArea(
       child: RefreshIndicator(
@@ -69,42 +58,43 @@ class _CargoTabState extends ConsumerState<CargoTab> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            ElevatedButton.icon(
+            AppButton(
+              label: 'Send a package',
+              icon: Icons.add,
+              expand: true,
               onPressed: () async {
                 await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NewShipmentScreen()));
                 _load();
               },
-              icon: const Icon(Icons.add),
-              label: const Text('Send a package'),
             ),
             const SizedBox(height: 24),
-            Text('My shipments', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
+            AppSectionHeader(title: 'My shipments'),
             if (_shipments.isEmpty)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 32), child: Center(child: Text('No shipments yet')))
+              const AppEmptyState(message: 'No shipments yet', icon: Icons.local_shipping_outlined)
             else
-              ..._shipments.map((s) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(s['shipment_reference'] as String? ?? ''),
-                      subtitle: Text(DateFormat('d MMM yyyy').format(DateTime.parse(s['created_at'] as String))),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('₹${((s['total_fare_cents'] as int? ?? 0) / 100).toStringAsFixed(0)}'),
-                          Text(
-                            (s['status'] as String? ?? '').replaceAll('_', ' ').toUpperCase(),
-                            style: TextStyle(color: _statusColor(s['status'] as String? ?? ''), fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+              ..._shipments.map((s) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: AppCard(
+                      padding: EdgeInsets.zero,
+                      child: AppListItem(
+                        title: s['shipment_reference'] as String? ?? '',
+                        subtitle: DateFormat('d MMM yyyy').format(DateTime.parse(s['created_at'] as String)),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('₹${((s['total_fare_cents'] as int? ?? 0) / 100).toStringAsFixed(0)}'),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppBadge(status: s['status'] as String? ?? ''),
+                          ],
+                        ),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => ShipmentDetailScreen(shipmentId: s['id'] as String)),
+                          );
+                          _load();
+                        },
                       ),
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => ShipmentDetailScreen(shipmentId: s['id'] as String)),
-                        );
-                        _load();
-                      },
                     ),
                   )),
           ],

@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,7 +44,7 @@ class CargoVehiclesScreen extends ConsumerWidget {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: regController, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Registration number')),
+              AppTextField(controller: regController, label: 'Registration number'),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 initialValue: selectedType,
@@ -83,25 +84,30 @@ class CargoVehiclesScreen extends ConsumerWidget {
         onRefresh: () async => ref.invalidate(cargoVehiclesProvider(context.operatorId)),
         child: vehiclesAsync.when(
           data: (vehicles) => vehicles.isEmpty
-              ? ListView(children: const [
-                  Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No vehicles yet — add your first vehicle.'))),
-                ])
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [AppEmptyState(message: 'No vehicles yet — add your first vehicle.', icon: Icons.local_shipping_outlined)],
+                )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: vehicles.length,
                   itemBuilder: (c, i) {
                     final v = vehicles[i];
-                    return Card(
-                      child: ListTile(
+                    return AppCard(
+                      padding: EdgeInsets.zero,
+                      child: AppListItem(
                         leading: const Icon(Icons.local_shipping_outlined),
-                        title: Text(v['registration_number'] as String),
-                        subtitle: Text('${v['vehicle_type']?['name'] ?? '?'} · ${v['status']}'),
+                        title: v['registration_number'] as String,
+                        subtitle: '${v['vehicle_type']?['name'] ?? '?'} · ${v['status']}',
                       ),
                     );
                   },
                 ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, st) => Center(child: Text('Could not load vehicles: $e')),
+          loading: () => const AppLoadingState(),
+          error: (e, st) => AppErrorState(
+            message: 'Could not load vehicles: $e',
+            onRetry: () => ref.invalidate(cargoVehiclesProvider(context.operatorId)),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
