@@ -101,10 +101,10 @@ class _BusFormScreenState extends ConsumerState<BusFormScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
+                AppTextField(
                   controller: _regController,
                   textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(labelText: 'Registration number'),
+                  label: 'Registration number',
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 16),
@@ -115,10 +115,11 @@ class _BusFormScreenState extends ConsumerState<BusFormScreen> {
                   onChanged: (v) => setState(() => _busType = v!),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _seatsController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Total seats', helperText: 'A default 2+2 layout will be generated automatically'),
+                  label: 'Total seats',
+                  helperText: 'A default 2+2 layout will be generated automatically',
                   validator: (v) {
                     final n = int.tryParse(v ?? '');
                     if (n == null || n < 1 || n > 80) return 'Enter a number between 1 and 80';

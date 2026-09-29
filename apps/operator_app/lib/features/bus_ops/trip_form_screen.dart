@@ -93,16 +93,16 @@ class _TripFormScreenState extends ConsumerState<TripFormScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
+              AppTextField(
                 controller: _minFareController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Fare (₹) — min'),
+                label: 'Fare (₹) — min',
               ),
               const SizedBox(height: 16),
-              TextFormField(
+              AppTextField(
                 controller: _maxFareController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Fare (₹) — max'),
+                label: 'Fare (₹) — max',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),

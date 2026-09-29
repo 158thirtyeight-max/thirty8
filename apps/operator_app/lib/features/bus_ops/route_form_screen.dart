@@ -88,10 +88,10 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
                   onChanged: (v) => setState(() => _destinationCityId = v),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _distanceController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Distance (km, optional)'),
+                  label: 'Distance (km, optional)',
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),

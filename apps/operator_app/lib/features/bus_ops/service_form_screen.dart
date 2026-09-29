@@ -117,10 +117,10 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
+              AppTextField(
                 controller: _arrivalOffsetController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Journey duration (minutes)'),
+                label: 'Journey duration (minutes)',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),

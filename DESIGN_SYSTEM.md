@@ -152,14 +152,20 @@ routing were left untouched everywhere — this was a presentation-only pass.
 `flutter analyze` is clean on both Flutter apps and `next build` succeeds on
 admin web.
 
+`AppTextField` now also supports `validator`, `autovalidateMode`, `onSaved`,
+`textInputAction`, `onFieldSubmitted`, `helperText`, and `textCapitalization`
+(it's a `TextFormField` under the hood), so every `Form`-validated field —
+across auth, booking, bus_ops, service forms — has been converted too.
+**Zero `TextFormField`s remain in either Flutter app's `lib/features/`.**
+
 A few files were deliberately left as-is because nothing matched:
-- Flutter: `TextFormField`s with a `validator` (forms) were kept rather
-  than converted to `AppTextField`, which doesn't support validators — this
-  applies across the auth/booking/bus_ops/service forms.
-  `operator_app`'s `home_shell.dart`, `bus_ops_tab.dart`, and
+- `operator_app`'s `home_shell.dart`, `bus_ops_tab.dart`, and
   `cargo_ops_tab.dart` are pure tab/navigation scaffolding with nothing to
   restyle. `SeatColors` (customer_app) and seat-map coloring are untouched —
   domain-specific availability coloring, not decorative chrome.
+  `DropdownButtonFormField`s across bus_ops/service forms are untouched —
+  `AppTextField` is a text input, not a dropdown; no design-system dropdown
+  component exists yet (see "What's not done yet").
 - Admin web: `bookings/page.tsx`, `dashboard/page.tsx`, `audit-logs/page.tsx`,
   `shipments/page.tsx` already used only shared components/tokens.
 
@@ -171,12 +177,10 @@ A few files were deliberately left as-is because nothing matched:
 2. No dark-mode variant exists for the two Flutter apps beyond
    `AppTheme.dark()` being defined (apps currently launch in light mode by
    default — verify before enabling a theme switcher).
-3. `AppTextField` doesn't support form `validator`s, so screens using
-   `Form`/`TextFormField` for validation were intentionally left on
-   `TextFormField` rather than losing validation — if a validated-input
-   design-system widget is wanted later, extend `AppTextField` (e.g. via an
-   optional `validator` param) rather than forcing every form onto
-   `TextField`.
+3. No design-system dropdown/select component exists — `bus_ops`/
+   `service_form` screens still use raw `DropdownButtonFormField`. If one is
+   wanted, add `AppDropdownField` to `packages/design_system/lib/src/components/`
+   following the same pattern as `AppTextField`.
 
 ## Future-feature rule
 

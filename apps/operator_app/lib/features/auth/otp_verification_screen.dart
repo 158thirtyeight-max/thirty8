@@ -94,13 +94,13 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
-              TextFormField(
+              AppTextField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 24, letterSpacing: 8),
-                decoration: const InputDecoration(counterText: '', hintText: '000000'),
+                hint: '000000',
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),

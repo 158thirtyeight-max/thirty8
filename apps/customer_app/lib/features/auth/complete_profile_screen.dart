@@ -80,16 +80,16 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 24),
-                TextFormField(
+                AppTextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Full name'),
+                  label: 'Full name',
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone number'),
+                  label: 'Phone number',
                   validator: (v) => (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
                 ),
                 if (_error != null) ...[

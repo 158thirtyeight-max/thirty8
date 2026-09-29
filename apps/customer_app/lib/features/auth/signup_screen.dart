@@ -85,30 +85,30 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 24),
-                TextFormField(
+                AppTextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Full name'),
+                  label: 'Full name',
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  label: 'Email',
                   validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone number'),
+                  label: 'Phone number',
                   validator: (v) => (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  label: 'Password',
                   validator: (v) => (v == null || v.length < 6) ? 'Password must be at least 6 characters' : null,
                 ),
                 if (_error != null) ...[

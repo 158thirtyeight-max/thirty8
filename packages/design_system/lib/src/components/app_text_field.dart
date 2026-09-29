@@ -22,6 +22,13 @@ class AppTextField extends StatelessWidget {
     this.maxLength,
     this.textAlign = TextAlign.start,
     this.style,
+    this.validator,
+    this.autovalidateMode,
+    this.onSaved,
+    this.textInputAction,
+    this.onFieldSubmitted,
+    this.helperText,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final TextEditingController? controller;
@@ -43,9 +50,22 @@ class AppTextField extends StatelessWidget {
   final TextAlign textAlign;
   final TextStyle? style;
 
+  /// Set this to validate inside a [Form] — same contract as
+  /// [TextFormField.validator]. Leave null for a plain, unvalidated field.
+  final FormFieldValidator<String>? validator;
+  final AutovalidateMode? autovalidateMode;
+  final FormFieldSetter<String>? onSaved;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
+
+  /// Extra hint line under the field, distinct from a validation [errorText]
+  /// (e.g. "A default 2+2 layout will be generated automatically").
+  final String? helperText;
+  final TextCapitalization textCapitalization;
+
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
@@ -54,10 +74,17 @@ class AppTextField extends StatelessWidget {
       maxLines: obscureText ? 1 : maxLines,
       maxLength: maxLength,
       textAlign: textAlign,
+      textCapitalization: textCapitalization,
       style: style,
+      validator: validator,
+      autovalidateMode: autovalidateMode,
+      onSaved: onSaved,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        helperText: helperText,
         errorText: errorText,
         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
         suffixIcon: suffixIcon,

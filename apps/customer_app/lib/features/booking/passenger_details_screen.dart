@@ -165,19 +165,19 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
                 ),
               for (int i = 0; i < widget.selectedSeats.length; i++) ...[
                 AppSectionHeader(title: 'Seat ${widget.selectedSeats[i]['seat_code']}'),
-                TextFormField(
+                AppTextField(
                   controller: _nameControllers[i],
-                  decoration: const InputDecoration(labelText: 'Full name'),
+                  label: 'Full name',
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
+                      child: AppTextField(
                         controller: _ageControllers[i],
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Age'),
+                        label: 'Age',
                         validator: (v) => (v == null || int.tryParse(v) == null) ? 'Required' : null,
                       ),
                     ),
@@ -199,17 +199,17 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
                 const SizedBox(height: 20),
               ],
               const AppSectionHeader(title: 'Contact details'),
-              TextFormField(
+              AppTextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email'),
+                label: 'Email',
                 validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
               ),
               const SizedBox(height: 8),
-              TextFormField(
+              AppTextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Phone'),
+                label: 'Phone',
                 validator: (v) => (v == null || v.trim().length < 10) ? 'Enter a valid phone number' : null,
               ),
               const SizedBox(height: 24),

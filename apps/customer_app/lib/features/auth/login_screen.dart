@@ -93,17 +93,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 8),
                   Text('Bus tickets & cargo across the islands', style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 40),
-                  TextFormField(
+                  AppTextField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                    label: 'Email',
                     validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
+                  AppTextField(
                     controller: _passwordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
+                    label: 'Password',
                     validator: (v) => (v == null || v.length < 6) ? 'Password must be at least 6 characters' : null,
                   ),
                   if (_error != null) ...[

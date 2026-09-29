@@ -83,29 +83,29 @@ class _RegisterOperatorScreenState extends ConsumerState<RegisterOperatorScreen>
                   onSelectionChanged: (s) => setState(() => _businessType = s.first),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Business name'),
+                  label: 'Business name',
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _legalNameController,
-                  decoration: const InputDecoration(labelText: 'Legal / registered name'),
+                  label: 'Legal / registered name',
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Contact email'),
+                  label: 'Contact email',
                   validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                AppTextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Contact phone'),
+                  label: 'Contact phone',
                   validator: (v) => (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
                 ),
                 if (_error != null) ...[
