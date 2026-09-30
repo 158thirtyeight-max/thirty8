@@ -6,13 +6,24 @@ export default async function DashboardPage() {
 
   const [
     { count: pendingOperators },
+    { count: busesInReview },
+    { count: legacyBuses },
+    { count: docsExpired },
+    { count: docsExpiringSoon },
     { count: totalOperators },
     { count: totalBookings },
     { count: totalShipments },
     { count: pendingRefunds },
     { data: revenueRows },
   ] = await Promise.all([
-    supabase.from("operators").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("operators").select("id", { count: "exact", head: true }).in("application_status", ["submitted", "under_review"]),
+    supabase
+      .from("buses")
+      .select("id", { count: "exact", head: true })
+      .or("lifecycle_status.in.(submitted,under_review),legacy_migration_status.in.(submitted,under_review)"),
+    supabase.from("buses").select("id", { count: "exact", head: true }).eq("is_legacy", true),
+    supabase.from("bus_document_expiry").select("id", { count: "exact", head: true }).eq("expiry_state", "expired"),
+    supabase.from("bus_document_expiry").select("id", { count: "exact", head: true }).eq("expiry_state", "expiring_soon"),
     supabase.from("operators").select("id", { count: "exact", head: true }),
     supabase.from("bookings").select("id", { count: "exact", head: true }),
     supabase.from("cargo_shipments").select("id", { count: "exact", head: true }),
@@ -26,7 +37,11 @@ export default async function DashboardPage() {
     <div>
       <PageTitle title="Dashboard" subtitle="Platform-wide overview" />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        <StatCard label="Operators pending approval" value={pendingOperators ?? 0} />
+        <StatCard label="Operator applications to review" value={pendingOperators ?? 0} />
+        <StatCard label="Buses awaiting review" value={busesInReview ?? 0} />
+        <StatCard label="Legacy buses to migrate" value={legacyBuses ?? 0} />
+        <StatCard label="Bus documents expired" value={docsExpired ?? 0} />
+        <StatCard label="Bus documents expiring in 30 days" value={docsExpiringSoon ?? 0} />
         <StatCard label="Total operators" value={totalOperators ?? 0} />
         <StatCard label="Total bookings" value={totalBookings ?? 0} />
         <StatCard label="Total shipments" value={totalShipments ?? 0} />

@@ -5,12 +5,14 @@ import SignOutButton from "./sign-out-button";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/operators", label: "Operators" },
+  { href: "/buses", label: "Buses" },
   { href: "/users", label: "Users" },
   { href: "/bookings", label: "Bookings" },
   { href: "/shipments", label: "Shipments" },
   { href: "/refunds", label: "Refunds" },
   { href: "/revenue", label: "Revenue" },
   { href: "/audit-logs", label: "Audit logs" },
+  { href: "/settings/document-requirements", label: "Requirements" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

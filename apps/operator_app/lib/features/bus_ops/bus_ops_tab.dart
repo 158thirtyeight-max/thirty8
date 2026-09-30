@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/operator_providers.dart';
-import 'fleet_list_screen.dart';
+import '../fleet/my_buses_screen.dart';
 import 'routes_list_screen.dart';
 import 'services_list_screen.dart';
 
@@ -26,7 +26,7 @@ class BusOpsTab extends StatelessWidget {
           ]),
         ),
         body: TabBarView(children: [
-          FleetListScreen(context: context),
+          MyBusesScreen(context: context),
           RoutesListScreen(context: context),
           ServicesListScreen(context: context),
         ]),

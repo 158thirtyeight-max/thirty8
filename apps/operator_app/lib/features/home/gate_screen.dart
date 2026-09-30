@@ -6,7 +6,7 @@ import '../../core/operator_providers.dart';
 import '../../core/profile_providers.dart';
 import '../auth/complete_profile_screen.dart';
 import '../auth/pending_approval_screen.dart';
-import '../auth/register_operator_screen.dart';
+import '../onboarding/onboarding_flow_screen.dart';
 import 'home_shell.dart';
 
 /// Single post-login gate: first forces a stop at CompleteProfileScreen if
@@ -40,8 +40,12 @@ class _OperatorGate extends ConsumerWidget {
     final contextAsync = ref.watch(operatorContextProvider);
 
     return contextAsync.when(
+      skipLoadingOnReload: true,
       data: (operatorContext) {
-        if (operatorContext == null) return const RegisterOperatorScreen();
+        if (operatorContext == null) return const OnboardingFlowScreen();
+        if (operatorContext.isApplicationEditable && !operatorContext.isApproved) {
+          return OnboardingFlowScreen(operatorContext: operatorContext);
+        }
         if (!operatorContext.isApproved) return const PendingApprovalScreen();
         return HomeShell(context: operatorContext);
       },

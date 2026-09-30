@@ -37,8 +37,12 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
 
   Future<void> _loadSeatMap() async {
     try {
+      // Fares depend on the chosen boarding/dropping points; the server is the
+      // single source of truth for the price of every seat.
       final res = await ref.read(supabaseProvider).rpc('get_trip_seat_map', params: {
         'p_trip_id': widget.trip['trip_id'],
+        'p_boarding_point_id': widget.boardingPoint['id'],
+        'p_dropping_point_id': widget.droppingPoint['id'],
       });
       if (!mounted) return;
       final map = res as Map<String, dynamic>;
@@ -81,6 +85,8 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
         'p_trip_id': widget.trip['trip_id'],
         'p_seat_ids': _selectedSeatIds.toList(),
         'p_ttl_seconds': 300,
+        'p_boarding_point_id': widget.boardingPoint['id'],
+        'p_dropping_point_id': widget.droppingPoint['id'],
       });
       if (!mounted) return;
       final hold = result as Map<String, dynamic>;
@@ -108,9 +114,14 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      final message = e.toString().contains('seat_unavailable')
+      final text = e.toString();
+      final message = text.contains('seat_unavailable')
           ? 'One or more selected seats were just taken. Please choose again.'
-          : 'Could not hold those seats. Please try again.';
+          : text.contains('bus_unavailable')
+              ? 'This bus is no longer available for booking.'
+              : text.contains('invalid_points')
+                  ? 'Please choose a valid boarding and dropping point.'
+                  : 'Could not hold those seats. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       setState(() {
         _selectedSeatIds.clear();

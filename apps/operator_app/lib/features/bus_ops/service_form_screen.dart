@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase_providers.dart';
-import 'fleet_list_screen.dart';
+import '../fleet/fleet_providers.dart';
 import 'routes_list_screen.dart';
 
 class ServiceFormScreen extends ConsumerStatefulWidget {
@@ -99,7 +99,8 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                   initialValue: _busId,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Bus'),
-                  items: buses.map((b) => DropdownMenuItem(value: b['id'] as String, child: Text(b['registration_number'] as String))).toList(),
+                  // Only buses that completed the approval workflow (or legacy buses still in service) can run extra services.
+                  items: buses.where((b) => b['lifecycle_status'] == 'active').map((b) => DropdownMenuItem(value: b['id'] as String, child: Text(b['registration_number'] as String))).toList(),
                   onChanged: (v) => setState(() => _busId = v),
                 ),
                 loading: () => const CircularProgressIndicator(),

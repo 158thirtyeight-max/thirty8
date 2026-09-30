@@ -34,16 +34,36 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
     final trip = await supabase.from('bus_trips').select('route_id').eq('id', widget.trip['trip_id'] as String).single();
     final routeId = trip['route_id'] as String;
 
-    final boarding = await supabase.from('boarding_points').select().eq('route_id', routeId).order('sequence_no');
-    final dropping = await supabase.from('dropping_points').select().eq('route_id', routeId).order('sequence_no');
+    final boarding = await supabase.from('boarding_points').select().eq('route_id', routeId).eq('is_active', true).order('sequence_no');
+    final dropping = await supabase.from('dropping_points').select().eq('route_id', routeId).eq('is_active', true).order('sequence_no');
 
     if (!mounted) return;
     setState(() {
       _boardingPoints = List<Map<String, dynamic>>.from(boarding as List);
       _droppingPoints = List<Map<String, dynamic>>.from(dropping as List);
       _selectedBoarding = _boardingPoints.isNotEmpty ? _boardingPoints.first : null;
-      _selectedDropping = _droppingPoints.isNotEmpty ? _droppingPoints.first : null;
+      final valid = _validDropping;
+      _selectedDropping = valid.isNotEmpty ? valid.first : null;
       _loading = false;
+    });
+  }
+
+  /// On routes built with the operator setup wizard the stops are one ordered
+  /// sequence, so only stops after the chosen boarding point can be dropped at.
+  /// Older routes number the two lists independently and are shown unfiltered.
+  List<Map<String, dynamic>> get _validDropping {
+    final b = _selectedBoarding;
+    if (b == null || b['departure_offset_min'] == null) return _droppingPoints;
+    return _droppingPoints.where((d) => (d['sequence_no'] as int) > (b['sequence_no'] as int)).toList();
+  }
+
+  void _selectBoarding(Map<String, dynamic>? v) {
+    setState(() {
+      _selectedBoarding = v;
+      final valid = _validDropping;
+      if (_selectedDropping == null || !valid.any((d) => d['id'] == _selectedDropping!['id'])) {
+        _selectedDropping = valid.isNotEmpty ? valid.first : null;
+      }
     });
   }
 
@@ -99,13 +119,13 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
                   ..._boardingPoints.map((bp) => RadioListTile<Map<String, dynamic>>(
                         value: bp,
                         groupValue: _selectedBoarding,
-                        onChanged: (v) => setState(() => _selectedBoarding = v),
+                        onChanged: _selectBoarding,
                         title: Text(bp['name'] as String),
                         subtitle: bp['address'] != null ? Text(bp['address'] as String) : null,
                       )),
                   const SizedBox(height: AppSpacing.sm),
                   Text('Dropping point', style: Theme.of(context).textTheme.titleSmall),
-                  ..._droppingPoints.map((dp) => RadioListTile<Map<String, dynamic>>(
+                  ..._validDropping.map((dp) => RadioListTile<Map<String, dynamic>>(
                         value: dp,
                         groupValue: _selectedDropping,
                         onChanged: (v) => setState(() => _selectedDropping = v),

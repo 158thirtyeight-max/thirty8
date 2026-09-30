@@ -1,0 +1,6 @@
+{
+  "name": "supabase-sql-test-harness",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@electric-sql/pglite": "^0.3.0" }
+}

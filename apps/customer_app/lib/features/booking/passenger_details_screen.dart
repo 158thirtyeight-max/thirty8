@@ -119,9 +119,15 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_expired ? 'Your seat hold expired.' : 'Could not create the booking. Please try again.')),
-      );
+      final text = e.toString();
+      final message = _expired
+          ? 'Your seat hold expired.'
+          : text.contains('fare_changed')
+              ? 'The fare changed since you selected your seats. Please go back and review the price.'
+              : text.contains('bus_unavailable')
+                  ? 'This bus is no longer available for booking.'
+                  : 'Could not create the booking. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
