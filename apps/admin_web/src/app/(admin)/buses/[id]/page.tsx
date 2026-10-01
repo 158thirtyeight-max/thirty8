@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Button, EmptyState, PageTitle, SectionHeader, Table, Td, Th } from "@/components/ui";
 import { SeatLayoutView } from "@/components/seat-layout";
-import { reviewBus, reviewBusDocument } from "../actions";
+import { assignRoute, reviewBus, reviewBusDocument } from "../actions";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -103,6 +103,7 @@ export default async function BusDetailPage({
     { data: dstCity },
   ] = await Promise.all([
     supabase.from("bus_documents").select("*").eq("bus_id", id).order("created_at"),
+  const { data: catalog } = await supabase.from("route_templates").select("id, name").eq("is_active", true).order("name");
     supabase.from("bus_layouts").select("*").eq("bus_id", id).eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle(),
     routeId ? supabase.from("boarding_points").select("*").eq("route_id", routeId).eq("is_active", true).order("sequence_no") : Promise.resolve({ data: [] as any[] }),
     routeId ? supabase.from("dropping_points").select("*").eq("route_id", routeId).eq("is_active", true).order("sequence_no") : Promise.resolve({ data: [] as any[] }),
@@ -354,6 +355,32 @@ export default async function BusDetailPage({
         {service ? (
           <>
             <p className="mb-3 text-sm text-text-secondary">
+        {(bus.is_legacy || ["draft", "changes_requested"].includes(bus.lifecycle_status)) && (
+          <form action={assignRoute.bind(null, id)} className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-3 text-sm">
+            <label className="text-xs">
+              Assign a route from the catalog
+              <select name="template_id" className="mt-1 block rounded-md border border-border bg-background px-2 py-1 text-sm" defaultValue="">
+                <option value="">Select…</option>
+                {(catalog ?? []).map((r: any) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs">
+              Departs
+              <input type="time" name="departure_time" defaultValue={service ? String(service.default_departure_time).slice(0, 5) : "06:00"} className="mt-1 block rounded-md border border-border bg-background px-2 py-1 text-sm" />
+            </label>
+            <div className="flex gap-2 text-xs">
+              {DAY_LABELS.slice(1).map((d, i) => (
+                <label key={d} className="flex items-center gap-1">
+                  <input type="checkbox" name="days" value={i + 1} defaultChecked={service ? (service.operating_days ?? []).includes(i + 1) : true} /> {d}
+                </label>
+              ))}
+            </div>
+            <Button type="submit" variant="outline">Assign route</Button>
+            <p className="w-full text-xs text-text-tertiary">Replaces the bus&apos;s current route and stops. The operator sees it immediately in their app and can still adjust times.</p>
+          </form>
+        )}
               {srcCity?.name ?? "?"} → {dstCity?.name ?? "?"} · departs {String(service.default_departure_time).slice(0, 5)} · journey{" "}
               {service.est_duration_min ? `${Math.floor(service.est_duration_min / 60)}h ${service.est_duration_min % 60}m` : "—"}
             </p>

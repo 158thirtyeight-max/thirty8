@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/supabase_providers.dart';
 import 'bus_details_screen.dart';
 import 'city.dart';
+import 'main_locations_provider.dart';
 
 class SearchResultsScreen extends ConsumerStatefulWidget {
   const SearchResultsScreen({super.key, required this.source, required this.destination, required this.date});
@@ -20,6 +21,8 @@ class SearchResultsScreen extends ConsumerStatefulWidget {
 
 class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   bool _loading = true;
+  String? _pickupId;
+  String? _dropId;
   String? _error;
   List<Map<String, dynamic>> _direct = [];
   List<Map<String, dynamic>> _connected = [];
@@ -36,6 +39,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
         'p_source_city_id': widget.source.id,
         'p_destination_city_id': widget.destination.id,
         'p_travel_date': DateFormat('yyyy-MM-dd').format(widget.date),
+        'p_pickup_point_id': _pickupId,
+        'p_drop_point_id': _dropId,
       });
       if (!mounted) return;
       final map = res as Map<String, dynamic>;
@@ -55,6 +60,28 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final points = ref.watch(journeyPointsProvider((
+      source: widget.source.id,
+      destination: widget.destination.id,
+      date: DateFormat('yyyy-MM-dd').format(widget.date),
+    ))).value;
+    final pickups = points?['pickup'] ?? const <Map<String, dynamic>>[];
+    final drops = points?['drop'] ?? const <Map<String, dynamic>>[];
+
+    Widget filter(String label, List<Map<String, dynamic>> options, String? value, void Function(String?) onChanged) {
+      return DropdownButtonFormField<String?>(
+        key: ValueKey('$label-$value'),
+        initialValue: options.any((o) => o['id'] == value) ? value : null,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: label),
+        items: [
+          DropdownMenuItem<String?>(value: null, child: Text('Any ${label.toLowerCase()}')),
+          for (final o in options) DropdownMenuItem<String?>(value: o['id'] as String, child: Text(o['name'] as String, overflow: TextOverflow.ellipsis)),
+        ],
+        onChanged: onChanged,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.source.name} → ${widget.destination.name}'),
@@ -64,15 +91,48 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
           builder: (context) {
             if (_loading) return const AppLoadingState();
             if (_error != null) return AppErrorState(message: _error!, onRetry: _search);
+            void changed(void Function() update) {
+              setState(() {
+                update();
+                _loading = true;
+              });
+              _search();
+            }
+
+            final filters = (pickups.isNotEmpty || drops.isNotEmpty)
+                ? Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Column(
+                      children: [
+                        if (pickups.isNotEmpty) filter('Pickup point', pickups, _pickupId, (v) => changed(() => _pickupId = v)),
+                        if (pickups.isNotEmpty && drops.isNotEmpty) const SizedBox(height: AppSpacing.sm),
+                        if (drops.isNotEmpty) filter('Drop point', drops, _dropId, (v) => changed(() => _dropId = v)),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink();
             if (_direct.isEmpty && _connected.isEmpty) {
-              return const AppEmptyState(message: 'No buses found for this route on this date', icon: Icons.directions_bus_filled_outlined);
+              return ListView(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                children: [
+                  filters,
+                  const AppEmptyState(message: 'No buses found for this route on this date', icon: Icons.directions_bus_filled_outlined),
+                ],
+              );
             }
             return ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
+                filters,
                 if (_direct.isNotEmpty) ...[
                   AppSectionHeader(title: 'Direct'),
-                  ..._direct.map((t) => _DirectTripCard(trip: t)),
+                  ..._direct.map((t) => _DirectTripCard(
+                        trip: t,
+                        sourceCityId: widget.source.id,
+                        destinationCityId: widget.destination.id,
+                        pickupPointId: _pickupId,
+                        dropPointId: _dropId,
+                      )),
                   const SizedBox(height: AppSpacing.md),
                 ],
                 if (_connected.isNotEmpty) ...[
@@ -91,9 +151,13 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 String _time(String iso) => DateFormat('h:mm a').format(DateTime.parse(iso).toLocal());
 
 class _DirectTripCard extends StatelessWidget {
-  const _DirectTripCard({required this.trip});
+  const _DirectTripCard({required this.trip, required this.sourceCityId, required this.destinationCityId, this.pickupPointId, this.dropPointId});
 
   final Map<String, dynamic> trip;
+  final String sourceCityId;
+  final String destinationCityId;
+  final String? pickupPointId;
+  final String? dropPointId;
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +196,15 @@ class _DirectTripCard extends StatelessWidget {
             expand: true,
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => BusDetailsScreen(trip: trip)),
+                MaterialPageRoute(
+                  builder: (_) => BusDetailsScreen(
+                    trip: trip,
+                    sourceCityId: sourceCityId,
+                    destinationCityId: destinationCityId,
+                    pickupPointId: pickupPointId,
+                    dropPointId: dropPointId,
+                  ),
+                ),
               );
             },
           ),

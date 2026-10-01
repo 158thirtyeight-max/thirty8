@@ -42,15 +42,37 @@ void main() {
   });
 
   group('validation', () {
-    List<String> run(List<RouteStop> stops, {String? src = 'a', String? dst = 'b', Set<int> days = const {1}}) =>
-        validateRoute(sourceCityId: src, destinationCityId: dst, stops: stops, operatingDays: days);
+    // Stops need a main location: first = 'a', last = 'b', the rest get distinct ids.
+    List<String> run(List<RouteStop> stops, {String? src = 'a', String? dst = 'b', Set<int> days = const {1}}) {
+      for (var i = 0; i < stops.length; i++) {
+        stops[i].cityId ??= i == 0 ? 'a' : (i == stops.length - 1 ? 'b' : 'm$i');
+      }
+      return validateRoute(sourceCityId: src, destinationCityId: dst, stops: stops, operatingDays: days);
+    }
 
     test('valid route', () => expect(run(good), isEmpty));
 
     test('cities and days', () {
       expect(run(good, src: null), isNotEmpty);
-      expect(run(good, src: 'a', dst: 'a').single, 'Origin and destination must be different');
+      expect(run(good, src: 'a', dst: 'a'), contains('Origin and destination must be different'));
       expect(run(good, days: {}), contains('Select at least one operating day'));
+    });
+
+    test('main locations: required, anchored at origin / destination, no repeats', () {
+      List<String> raw(List<RouteStop> stops) =>
+          validateRoute(sourceCityId: 'a', destinationCityId: 'b', stops: stops, operatingDays: const {1});
+      RouteStop at(String? city, {bool b = false, bool d = false, int? arr, int? dep}) =>
+          RouteStop(name: 'X', isBoarding: b, isDropping: d, arrivalMin: arr, departureMin: dep, cityId: city);
+
+      expect(raw([at(null, b: true, dep: 0), at('b', d: true, arr: 60)]).join(), contains('choose a main location'));
+      expect(raw([at('z', b: true, dep: 0), at('b', d: true, arr: 60)]), contains('The first stop must be the origin location'));
+      expect(raw([at('a', b: true, dep: 0), at('z', d: true, arr: 60)]), contains('The last stop must be the destination location'));
+      expect(
+        raw([at('a', b: true, dep: 0), at('m', b: true, d: true, arr: 30, dep: 30), at('a', b: true, d: true, arr: 40, dep: 40), at('b', d: true, arr: 60)]),
+        contains('A location can appear only once on a route'),
+      );
+      // several points inside one location are allowed
+      expect(raw([at('a', b: true, dep: 0), at('a', b: true, d: true, arr: 10, dep: 10), at('b', d: true, arr: 60)]), isEmpty);
     });
 
     test('needs origin boarding, destination dropping, 2+ stops', () {
@@ -105,6 +127,29 @@ void main() {
     expect(j[1]['arrival_offset_min'], 120);
     expect(j[1]['departure_offset_min'], 120);
     expect(j[1]['dropping_point_id'], 'dp2');
+  });
+
+  test('stopsToJson sends the main location and master point; stopsFromPoints restores them', () {
+    final stop = s('Bus Stand', b: true, dep: hm(6, 0))
+      ..cityId = 'loc1'
+      ..masterPointId = 'pt1';
+    final j = stopsToJson([stop, s('End', d: true, arr: hm(7, 0))..cityId = 'loc2']);
+    expect(j[0]['city_id'], 'loc1');
+    expect(j[0]['master_point_id'], 'pt1');
+    expect(j[1]['master_point_id'], isNull);
+
+    final back = stopsFromPoints(
+      departureMin: hm(6, 0),
+      boarding: [
+        {'id': 'b1', 'sequence_no': 1, 'name': 'Bus Stand', 'city_id': 'loc1', 'master_point_id': 'pt1', 'arrival_offset_min': 0, 'departure_offset_min': 0, 'is_active': true},
+      ],
+      dropping: [
+        {'id': 'd2', 'sequence_no': 2, 'name': 'End', 'city_id': 'loc2', 'arrival_offset_min': 60, 'departure_offset_min': 60, 'is_active': true},
+      ],
+    );
+    expect(back[0].cityId, 'loc1');
+    expect(back[0].masterPointId, 'pt1');
+    expect(back[1].masterPointId, isNull);
   });
 
   test('stopsFromPoints merges boarding + dropping rows by sequence and ignores inactive', () {

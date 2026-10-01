@@ -15,6 +15,7 @@ class RouteStop {
     this.address,
     this.boardingPointId,
     this.droppingPointId,
+    this.masterPointId,
   });
 
   String name;
@@ -30,6 +31,10 @@ class RouteStop {
   /// Ids of the existing point rows, so re-saving keeps booking references.
   String? boardingPointId;
   String? droppingPointId;
+
+  /// The admin-managed pickup / drop point this stop uses (null = the location itself).
+  /// `cityId` is the stop's main location and is required.
+  String? masterPointId;
 }
 
 const minutesPerDay = 1440;
@@ -120,6 +125,28 @@ List<String> validateRoute({
   if (!stops.any((s) => s.isBoarding)) errors.add('At least one boarding point is required');
   if (!stops.any((s) => s.isDropping)) errors.add('At least one dropping point is required');
 
+  // Every stop is a main location; the route starts / ends where it says and each
+  // location appears in one run (several points in the same location are fine).
+  for (var i = 0; i < stops.length; i++) {
+    if (stops[i].cityId == null) {
+      final label = stops[i].name.trim().isEmpty ? 'Stop ${i + 1}' : stops[i].name.trim();
+      errors.add('$label: choose a main location');
+    }
+  }
+  if (stops.every((s) => s.cityId != null)) {
+    if (sourceCityId != null && stops.first.cityId != sourceCityId) errors.add('The first stop must be the origin location');
+    if (destinationCityId != null && stops.last.cityId != destinationCityId) errors.add('The last stop must be the destination location');
+    final seen = <String>{};
+    String? prev;
+    for (final s in stops) {
+      if (s.cityId != prev && !seen.add(s.cityId!)) {
+        errors.add('A location can appear only once on a route');
+        break;
+      }
+      prev = s.cityId;
+    }
+  }
+
   final blank = stops.where((s) => s.name.trim().isEmpty).length;
   if (blank > 0) errors.add('$blank stop(s) have no name');
 
@@ -166,6 +193,7 @@ List<Map<String, dynamic>> stopsToJson(List<RouteStop> stops) {
         'name': stops[i].name.trim(),
         'address': stops[i].address,
         'city_id': stops[i].cityId,
+        'master_point_id': stops[i].masterPointId,
         'is_boarding': stops[i].isBoarding,
         'is_dropping': stops[i].isDropping,
         'arrival_offset_min': offsets[i].arrival,
@@ -191,6 +219,7 @@ List<RouteStop> stopsFromPoints({
     stop.name = (p['name'] as String?) ?? stop.name;
     stop.address ??= p['address'] as String?;
     stop.cityId ??= p['city_id'] as String?;
+    stop.masterPointId ??= p['master_point_id'] as String?;
     final arr = p['arrival_offset_min'] as int?;
     final dep = p['departure_offset_min'] as int?;
     if (arr != null) stop.arrivalMin = clockFromOffset(departureMin, arr);

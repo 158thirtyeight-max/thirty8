@@ -6,7 +6,7 @@ import '../../core/supabase_providers.dart';
 
 final citiesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final supabase = ref.watch(supabaseProvider);
-  return await supabase.from('cities').select('id, name, state').eq('is_active', true).order('name');
+  return await supabase.from('main_locations').select('id, name, state').eq('is_active', true).order('display_order');
 });
 
 class RouteFormScreen extends ConsumerStatefulWidget {

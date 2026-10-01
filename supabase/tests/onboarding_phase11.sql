@@ -22,6 +22,17 @@ with c as (insert into public.cities (country_id, name) values ((select id from 
 with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'W Dst') returning id)
   insert into t_ref select 'DST', id from c;
 
+-- Stops must be main locations: first = origin, last = destination, middle stops take seeded main locations.
+create or replace function public.t_stops(p_src uuid, p_dst uuid, p jsonb) returns jsonb language sql stable as $f$
+  select jsonb_agg(
+    s.v || jsonb_build_object('city_id', case
+      when s.i = 1 then p_src
+      when s.i = jsonb_array_length(p) then p_dst
+      else (select id from public.cities where display_order = s.i)
+    end) order by s.i)
+  from (select e.ordinality::int as i, e.value as v from jsonb_array_elements(p) with ordinality as e) s
+$f$;
+
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
 insert into t_ops select 'A', (public.register_operator('Op A', 'Op A Pvt Ltd', 'bus', 'a@test.invalid', '9876543210')).id;
@@ -52,9 +63,9 @@ begin
     {"seat_code":"1A","deck":1,"row_no":1,"col_no":1,"seat_type":"seater"},
     {"seat_code":"1B","deck":1,"row_no":1,"col_no":3,"seat_type":"seater"}]'::jsonb);
   perform public.save_bus_route(v_bus, (select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'DST'),
-    50, '07:00', 120, '{1,2,3,4,5,6,7}', '[
+    50, '07:00', 120, '{1,2,3,4,5,6,7}', public.t_stops((select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'DST'), '[
       {"name":"A","is_boarding":true,"is_dropping":false,"arrival_offset_min":0,"departure_offset_min":0},
-      {"name":"B","is_boarding":false,"is_dropping":true,"arrival_offset_min":120,"departure_offset_min":120}]'::jsonb);
+      {"name":"B","is_boarding":false,"is_dropping":true,"arrival_offset_min":120,"departure_offset_min":120}]'::jsonb));
   perform public.save_bus_fares(v_bus, '[{"seat_type":"seater","base_fare_cents":30000}]'::jsonb, '[]'::jsonb);
   perform public.save_bus_schedule(v_bus, '07:00', '{1,2,3,4,5,6,7}', 30, 30, 10);
   update public.buses set exterior_photo_path = 'x/y/e.jpg', interior_photo_path = 'x/y/i.jpg' where id = v_bus;

@@ -7,10 +7,17 @@ import '../../core/supabase_providers.dart';
 import '../booking/seat_selection_screen.dart';
 
 class BusDetailsScreen extends ConsumerStatefulWidget {
-  const BusDetailsScreen({super.key, required this.trip});
+  const BusDetailsScreen({super.key, required this.trip, this.sourceCityId, this.destinationCityId, this.pickupPointId, this.dropPointId});
 
   /// The trip map as returned by the search_trips RPC's `direct` array.
   final Map<String, dynamic> trip;
+
+  /// The journey the customer searched, and any exact master pickup / drop point
+  /// they chose: only stops of those locations are offered, and the chosen points are preselected.
+  final String? sourceCityId;
+  final String? destinationCityId;
+  final String? pickupPointId;
+  final String? dropPointId;
 
   @override
   ConsumerState<BusDetailsScreen> createState() => _BusDetailsScreenState();
@@ -38,12 +45,24 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
     final dropping = await supabase.from('dropping_points').select().eq('route_id', routeId).eq('is_active', true).order('sequence_no');
 
     if (!mounted) return;
+    // Offer only the stops in the searched locations (stops without a location are older routes: keep them).
+    List<Map<String, dynamic>> inLocation(List raw, String? cityId) {
+      final all = List<Map<String, dynamic>>.from(raw);
+      if (cityId == null) return all;
+      final match = all.where((p) => p['city_id'] == null || p['city_id'] == cityId).toList();
+      return match.isEmpty ? all : match;
+    }
+
     setState(() {
-      _boardingPoints = List<Map<String, dynamic>>.from(boarding as List);
-      _droppingPoints = List<Map<String, dynamic>>.from(dropping as List);
-      _selectedBoarding = _boardingPoints.isNotEmpty ? _boardingPoints.first : null;
+      _boardingPoints = inLocation(boarding as List, widget.sourceCityId);
+      _droppingPoints = inLocation(dropping as List, widget.destinationCityId);
+      _selectedBoarding = _boardingPoints.isEmpty
+          ? null
+          : _boardingPoints.firstWhere((p) => widget.pickupPointId != null && p['master_point_id'] == widget.pickupPointId, orElse: () => _boardingPoints.first);
       final valid = _validDropping;
-      _selectedDropping = valid.isNotEmpty ? valid.first : null;
+      _selectedDropping = valid.isEmpty
+          ? null
+          : valid.firstWhere((p) => widget.dropPointId != null && p['master_point_id'] == widget.dropPointId, orElse: () => valid.first);
       _loading = false;
     });
   }

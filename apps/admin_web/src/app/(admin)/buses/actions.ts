@@ -47,3 +47,22 @@ export async function reviewBusDocument(docId: string, busId: string, action: "v
   if (error) backWithError(busId, error.message);
   refresh(busId);
 }
+
+/** Copies a catalog route onto the bus (stops, timings, operating days) via admin_assign_route_to_bus. */
+export async function assignRoute(busId: string, formData: FormData) {
+  const { supabase } = await requirePlatformAdmin();
+  const templateId = String(formData.get("template_id") ?? "");
+  const time = String(formData.get("departure_time") ?? "");
+  const days = formData.getAll("days").map(Number).filter((d) => d >= 1 && d <= 7);
+  if (!templateId) backWithError(busId, "Choose a route to assign");
+  if (!time) backWithError(busId, "Enter the departure time");
+  if (days.length === 0) backWithError(busId, "Select at least one operating day");
+  const { error } = await supabase.rpc("admin_assign_route_to_bus", {
+    p_bus_id: busId,
+    p_template_id: templateId,
+    p_departure_time: time.length === 5 ? `${time}:00` : time,
+    p_operating_days: days,
+  });
+  if (error) backWithError(busId, error.message);
+  refresh(busId);
+}

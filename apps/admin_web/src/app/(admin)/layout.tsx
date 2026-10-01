@@ -15,6 +15,11 @@ const NAV_ITEMS = [
   { href: "/settings/document-requirements", label: "Requirements" },
 ];
 
+const TRANSPORT_ITEMS = [
+  { href: "/locations", label: "Location Management" },
+  { href: "/routes", label: "Routes" },
+];
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user } = await requirePlatformAdmin();
 
@@ -26,7 +31,27 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <p className="mt-0.5 truncate text-xs text-text-tertiary">{user.email}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.slice(0, 3).map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-primary/10 hover:text-primary"
+            >
+              {item.label}
+            </Link>
+          ))}
+          <p className="mt-3 px-3 text-xs font-medium uppercase tracking-wide text-text-tertiary">Transport Management</p>
+          {TRANSPORT_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-lg px-3 py-2 text-sm text-text-secondary transition hover:bg-primary/10 hover:text-primary"
+            >
+              {item.label}
+            </Link>
+          ))}
+          <p className="mt-3 px-3 text-xs font-medium uppercase tracking-wide text-text-tertiary">Operations</p>
+          {NAV_ITEMS.slice(3).map((item) => (
             <Link
               key={item.href}
               href={item.href}

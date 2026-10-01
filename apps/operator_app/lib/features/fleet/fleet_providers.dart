@@ -105,11 +105,11 @@ class FleetRepository {
 
 final fleetRepositoryProvider = Provider<FleetRepository>((ref) => FleetRepository(ref.watch(supabaseProvider)));
 
-/// Active cities for the origin / destination pickers.
+/// Active main locations (admin-managed, in display order) for origin / destination / stop pickers.
 final citiesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final rows = await ref
       .watch(supabaseProvider)
-      .from('cities')
+      .from('main_locations')
       .select('id, name, state')
       .eq('is_active', true)
       .order('name');
@@ -125,6 +125,29 @@ final busRouteProvider = FutureProvider.autoDispose.family<Map<String, dynamic>,
       .eq('bus_id', busId)
       .order('created_at')
       .limit(1)
+      .order('display_order');
+  return List<Map<String, dynamic>>.from(rows);
+});
+
+/// Active master pickup / drop points of every main location. Read-only for operators.
+final locationPointsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final rows = await ref
+      .watch(supabaseProvider)
+      .from('pickup_drop_points')
+      .select('id, main_location_id, name, landmark, is_pickup_allowed, is_drop_allowed')
+      .eq('is_active', true)
+      .order('display_order')
+      .order('name');
+  return List<Map<String, dynamic>>.from(rows);
+});
+
+/// Admin-managed route catalog (active routes with their ordered stops).
+final routeCatalogProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final rows = await ref
+      .watch(supabaseProvider)
+      .from('route_templates')
+      .select('*, stops:route_template_stops(*)')
+      .eq('is_active', true)
       .maybeSingle();
   if (service == null) return {'service': null, 'route': null, 'boarding': <Map<String, dynamic>>[], 'dropping': <Map<String, dynamic>>[]};
   final routeId = service['route_id'] as String;

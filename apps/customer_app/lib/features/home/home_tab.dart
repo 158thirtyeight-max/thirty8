@@ -1,38 +1,35 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/supabase_providers.dart';
 import '../search/city.dart';
-import '../search/city_picker_screen.dart';
+import '../search/main_locations_provider.dart';
 
-class HomeTab extends StatefulWidget {
+/// Active routes defined by the admin (route catalog), shown as quick picks.
+final popularRoutesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final rows = await ref
+      .watch(supabaseProvider)
+      .from('route_templates')
+      .select('id, name, source:cities!route_templates_source_city_id_fkey(id, name, state), destination:cities!route_templates_destination_city_id_fkey(id, name, state)')
+      .eq('is_active', true)
+      .order('name');
+  return List<Map<String, dynamic>>.from(rows);
+});
+
+class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
 
   @override
-  State<HomeTab> createState() => _HomeTabState();
+  ConsumerState<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> {
+class _HomeTabState extends ConsumerState<HomeTab> {
   City? _source;
   City? _destination;
   DateTime _date = DateTime.now();
-
-  Future<void> _pickCity({required bool isSource}) async {
-    final city = await Navigator.of(context).push<City>(
-      MaterialPageRoute(
-        builder: (_) => CityPickerScreen(title: isSource ? 'Leaving from' : 'Going to'),
-      ),
-    );
-    if (city == null) return;
-    setState(() {
-      if (isSource) {
-        _source = city;
-      } else {
-        _destination = city;
-      }
-    });
-  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -75,31 +72,45 @@ class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     final dateLabel = DateFormat('EEE, d MMM').format(_date);
+    final locationsAsync = ref.watch(mainLocationsProvider);
+    final locations = locationsAsync.value ?? const <City>[];
 
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Thirty8', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const AppLogoLockup(markSize: 26),
           const SizedBox(height: 4),
           Text('Where are you headed?', style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 20),
+          if (locationsAsync.hasError)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: AppErrorState(message: 'Could not load locations.', onRetry: () => ref.invalidate(mainLocationsProvider)),
+            ),
           AppCard(
             child: Column(
               children: [
-                _PickerRow(
+                _LocationDropdown(
                   icon: Icons.trip_origin,
-                  label: _source?.name ?? 'Leaving from',
-                  onTap: () => _pickCity(isSource: true),
+                  label: 'From',
+                  locations: locations,
+                  value: _source,
+                  onChanged: (c) => setState(() => _source = c),
                 ),
                 const Divider(height: 24),
                 Stack(
                   alignment: Alignment.centerRight,
                   children: [
-                    _PickerRow(
-                      icon: Icons.location_on,
-                      label: _destination?.name ?? 'Going to',
-                      onTap: () => _pickCity(isSource: false),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 48),
+                      child: _LocationDropdown(
+                        icon: Icons.location_on,
+                        label: 'Going to',
+                        locations: locations,
+                        value: _destination,
+                        onChanged: (c) => setState(() => _destination = c),
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.swap_vert),
@@ -124,8 +135,61 @@ class _HomeTabState extends State<HomeTab> {
               ],
             ),
           ),
+          ref.watch(popularRoutesProvider).maybeWhen(
+                data: (routes) => routes.isEmpty
+                    ? const SizedBox.shrink()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          Text('Popular routes', style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final r in routes)
+                                ActionChip(
+                                  label: Text(r['name'] as String),
+                                  onPressed: () => setState(() {
+                                    _source = City.fromJson(Map<String, dynamic>.from(r['source'] as Map));
+                                    _destination = City.fromJson(Map<String, dynamic>.from(r['destination'] as Map));
+                                  }),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                orElse: () => const SizedBox.shrink(),
+              ),
         ],
       ),
+    );
+  }
+}
+
+/// From / Going to dropdown fed by the shared main_locations table (admin order, active only).
+class _LocationDropdown extends StatelessWidget {
+  const _LocationDropdown({required this.icon, required this.label, required this.locations, required this.value, required this.onChanged});
+
+  final IconData icon;
+  final String label;
+  final List<City> locations;
+  final City? value;
+  final ValueChanged<City?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      key: ValueKey('$label-${value?.id}-${locations.length}'),
+      initialValue: locations.any((c) => c.id == value?.id) ? value!.id : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      ),
+      items: [for (final c in locations) DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))],
+      onChanged: (id) => onChanged(id == null ? null : locations.firstWhere((c) => c.id == id)),
     );
   }
 }

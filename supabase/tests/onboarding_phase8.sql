@@ -25,6 +25,17 @@ with c as (
   values ((select id from public.countries where code = 'ZZ'), 'Test Destination') returning id
 ) insert into t_city select 'DST', id from c;
 
+-- Stops must be main locations: first = origin, last = destination, middle stops take seeded main locations.
+create or replace function public.t_stops(p_src uuid, p_dst uuid, p jsonb) returns jsonb language sql stable as $f$
+  select jsonb_agg(
+    s.v || jsonb_build_object('city_id', case
+      when s.i = 1 then p_src
+      when s.i = jsonb_array_length(p) then p_dst
+      else (select id from public.cities where display_order = s.i)
+    end) order by s.i)
+  from (select e.ordinality::int as i, e.value as v from jsonb_array_elements(p) with ordinality as e) s
+$f$;
+
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
 insert into t_ops select 'A', (public.register_operator('Op A', 'Op A Pvt Ltd', 'bus', 'a@test.invalid', '9876543210')).id;
@@ -56,13 +67,13 @@ declare
   v_dst uuid := (select id from t_city where tag = 'DST');
   r jsonb; v_route uuid; n int;
 begin
-  r := public.save_bus_route(v_bus, v_src, v_dst, 200, '06:00', 480, '{1,2,3,4,5}', '[
+  r := public.save_bus_route(v_bus, v_src, v_dst, 200, '06:00', 480, '{1,2,3,4,5}', public.t_stops(v_src, v_dst, '[
     {"name":"Vijayapuram Bus Stand","is_boarding":true,"is_dropping":false,"arrival_offset_min":0,"departure_offset_min":0},
     {"name":"Bambooflat","is_boarding":true,"is_dropping":true,"arrival_offset_min":60,"departure_offset_min":65},
     {"name":"Rangat","is_boarding":true,"is_dropping":true,"arrival_offset_min":180,"departure_offset_min":190},
     {"name":"Mayabunder","is_boarding":true,"is_dropping":true,"arrival_offset_min":300,"departure_offset_min":305},
     {"name":"Diglipur","is_boarding":false,"is_dropping":true,"arrival_offset_min":480,"departure_offset_min":480}
-  ]'::jsonb);
+  ]'::jsonb));
   if not (r ->> 'valid')::boolean then raise exception 'FAIL 2a: valid route rejected: %', r -> 'errors'; end if;
   v_route := (r -> 'stats' ->> 'route_id')::uuid;
   select count(*) into n from public.boarding_points where route_id = v_route and is_active;
@@ -90,11 +101,11 @@ begin
   select id into v_origin from public.boarding_points where route_id = v_route and name = 'Vijayapuram Bus Stand';
   select id into v_dest from public.dropping_points where route_id = v_route and name = 'Diglipur';
   -- drop Bambooflat and Mayabunder, keep Rangat by id
-  r := public.save_bus_route(v_bus, v_src, v_dst, 200, '06:30', 480, '{1,2,3,4,5,6,7}', jsonb_build_array(
+  r := public.save_bus_route(v_bus, v_src, v_dst, 200, '06:30', 480, '{1,2,3,4,5,6,7}', public.t_stops(v_src, v_dst, jsonb_build_array(
     jsonb_build_object('name','Vijayapuram Bus Stand','is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0,'boarding_point_id',v_origin),
     jsonb_build_object('name','Rangat','is_boarding',true,'is_dropping',true,'arrival_offset_min',180,'departure_offset_min',190,'boarding_point_id',v_rangat),
     jsonb_build_object('name','Diglipur','is_boarding',false,'is_dropping',true,'arrival_offset_min',480,'departure_offset_min',480,'dropping_point_id',v_dest)
-  ));
+  )));
   if not (r ->> 'valid')::boolean then raise exception 'FAIL 3a: %', r -> 'errors'; end if;
   if not exists (select 1 from public.boarding_points where id = v_rangat and is_active and sequence_no = 2) then
     raise exception 'FAIL 3b: Rangat point id not preserved / resequenced';
@@ -102,10 +113,10 @@ begin
   select count(*) into n from public.boarding_points where route_id = v_route and not is_active;
   if n <> 2 then raise exception 'FAIL 3c: removed stops should be deactivated, not deleted (got % inactive)', n; end if;
   -- a second identical save must not collide on sequence numbers
-  perform public.save_bus_route(v_bus, v_src, v_dst, 200, '06:30', 480, '{1,2,3,4,5,6,7}', jsonb_build_array(
+  perform public.save_bus_route(v_bus, v_src, v_dst, 200, '06:30', 480, '{1,2,3,4,5,6,7}', public.t_stops(v_src, v_dst, jsonb_build_array(
     jsonb_build_object('name','Vijayapuram Bus Stand','is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
     jsonb_build_object('name','Diglipur','is_boarding',false,'is_dropping',true,'arrival_offset_min',480,'departure_offset_min',480)
-  ));
+  )));
 end $$;
 
 -- ---- 4. validation errors ------------------------------------------------
@@ -117,11 +128,11 @@ declare
   r jsonb;
 begin
   -- overlapping times and running past the duration
-  r := public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 200, '{1}', '[
+  r := public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 200, '{1}', public.t_stops(v_src, v_dst, '[
     {"name":"A","is_boarding":true,"is_dropping":false,"arrival_offset_min":0,"departure_offset_min":0},
     {"name":"B","is_boarding":true,"is_dropping":true,"arrival_offset_min":100,"departure_offset_min":120},
     {"name":"C","is_boarding":false,"is_dropping":true,"arrival_offset_min":110,"departure_offset_min":300}
-  ]'::jsonb);
+  ]'::jsonb));
   if (r ->> 'valid')::boolean then raise exception 'FAIL 4a: overlapping times accepted'; end if;
   if not (r ->> 'errors') like '%before the previous stop is left%' then raise exception 'FAIL 4b: %', r -> 'errors'; end if;
   if not (r ->> 'errors') like '%past the estimated journey duration%' then raise exception 'FAIL 4c: %', r -> 'errors'; end if;
@@ -132,15 +143,15 @@ begin
     raise exception 'FAIL 4d: same origin/destination accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 1, '06:00', 60, '{}', '[{"name":"x","is_boarding":true},{"name":"y","is_dropping":true}]'::jsonb);
+    perform public.save_bus_route(v_bus, v_src, v_dst, 1, '06:00', 60, '{}', public.t_stops(v_src, v_dst, '[{"name":"x","is_boarding":true},{"name":"y","is_dropping":true}]'::jsonb));
     raise exception 'FAIL 4e: no operating days accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 1, '06:00', 60, '{1}', '[{"name":"x","is_boarding":false},{"name":"y","is_dropping":true}]'::jsonb);
+    perform public.save_bus_route(v_bus, v_src, v_dst, 1, '06:00', 60, '{1}', public.t_stops(v_src, v_dst, '[{"name":"x","is_boarding":false},{"name":"y","is_dropping":true}]'::jsonb));
     raise exception 'FAIL 4f: origin that is not a boarding point accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 1, '06:00', 60, '{9}', '[{"name":"x","is_boarding":true},{"name":"y","is_dropping":true}]'::jsonb);
+    perform public.save_bus_route(v_bus, v_src, v_dst, 1, '06:00', 60, '{9}', public.t_stops(v_src, v_dst, '[{"name":"x","is_boarding":true},{"name":"y","is_dropping":true}]'::jsonb));
     raise exception 'FAIL 4g: invalid weekday accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
@@ -172,10 +183,10 @@ declare
   v_dst uuid := (select id from t_city where tag = 'DST');
   n int;
 begin
-  perform public.save_bus_route(v_a2, v_src, v_dst, 200, '09:00', 400, '{1,2}', '[
+  perform public.save_bus_route(v_a2, v_src, v_dst, 200, '09:00', 400, '{1,2}', public.t_stops(v_src, v_dst, '[
     {"name":"Other Origin","is_boarding":true,"arrival_offset_min":0,"departure_offset_min":0},
     {"name":"Other Dest","is_dropping":true,"arrival_offset_min":400,"departure_offset_min":400}
-  ]'::jsonb);
+  ]'::jsonb));
   select count(*) into n from public.bus_routes where source_city_id = v_src and destination_city_id = v_dst and bus_id is not null;
   if n <> 2 then raise exception 'FAIL 6: expected 2 bus-owned routes on the same corridor, got %', n; end if;
 end $$;
