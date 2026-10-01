@@ -8,6 +8,13 @@ const KIND_STYLES: Record<string, string> = {
   other: "bg-text-secondary/20 border-text-secondary/40",
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  ladies: "Ladies reserved",
+  accessible: "Accessible",
+  driver: "Driver",
+  conductor: "Conductor",
+};
+
 const KIND_LABELS: Record<string, string> = {
   bookable: "Available for booking",
   unavailable: "Not available",
@@ -44,7 +51,7 @@ export function SeatLayoutView({ layout, seats }: { layout: any; seats: any[] })
                       return (
                         <div
                           key={col}
-                          title={seat ? `${seat.seat_code} · ${KIND_LABELS[seat.kind] ?? seat.kind}${seat.category ? ` · ${seat.category}` : ""}` : "empty"}
+                          title={seat ? `${seat.seat_code} · ${(seat.role && ROLE_LABELS[seat.role]) || KIND_LABELS[seat.kind] || seat.kind}${seat.category ? ` · ${seat.category}` : ""}` : "empty"}
                           className={`m-0.5 flex h-10 w-10 items-center justify-center border text-[10px] font-medium ${
                             seat ? KIND_STYLES[seat.kind] ?? "" : "border-divider"
                           } ${seat?.seat_type === "sleeper" ? "rounded-sm" : "rounded-lg"} ${seat?.category === "premium" ? "ring-2 ring-primary" : ""}`}

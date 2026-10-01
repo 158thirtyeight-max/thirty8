@@ -14,5 +14,6 @@ export 'src/components/app_badge.dart';
 export 'src/components/app_button.dart';
 export 'src/components/app_card.dart';
 export 'src/components/app_list_item.dart';
+export 'src/components/app_logo.dart';
 export 'src/components/app_states.dart';
 export 'src/components/app_text_field.dart';

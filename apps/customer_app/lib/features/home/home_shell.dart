@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
 import '../bookings/my_trips_tab.dart';
@@ -26,9 +27,15 @@ class _HomeShellState extends State<HomeShell> {
     ProfileTab(),
   ];
 
+  static const _titles = ['Thirty8', 'Cargo', 'My Trips', 'Alerts', 'Profile'];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Home carries its own logo in the body; "plus" branding is operator/admin only.
+      appBar: _index == 0
+          ? null
+          : AppBar(title: Text(_titles[_index]), centerTitle: false),
       body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,

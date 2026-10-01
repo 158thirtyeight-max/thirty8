@@ -1,271 +1,211 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, Button, EmptyState, PageTitle, SectionHeader } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
-import { saveLocation, savePoint, setLocationActive, setPointActive } from "./actions";
+import { ColumnToggle, type ToggleColumn } from "./column-toggle";
+import { createLocation, saveRow, setLocationActive } from "./actions";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Search = { tab?: string; q?: string; status?: string; loc?: string; error?: string; notice?: string };
+type Search = { q?: string; type?: string; status?: string; sort?: string; error?: string; notice?: string };
 
 const inputClass = "w-full rounded-md border border-border bg-background px-2 py-1 text-sm text-text-primary";
 
-function Tabs({ tab }: { tab: "main" | "points" }) {
-  const base = "rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition";
-  const on = "border-primary text-primary";
-  const off = "border-transparent text-text-secondary hover:text-primary";
-  return (
-    <div className="mb-6 flex gap-2 border-b border-border">
-      <Link href="/locations?tab=main" className={`${base} ${tab === "main" ? on : off}`}>
-        Main Route Locations
-      </Link>
-      <Link href="/locations?tab=points" className={`${base} ${tab === "points" ? on : off}`}>
-        Pickup &amp; Drop Points
-      </Link>
-    </div>
-  );
+const COLUMNS: ToggleColumn[] = [
+  { key: "code", label: "Code", defaultVisible: true },
+  { key: "lat", label: "Latitude", defaultVisible: true },
+  { key: "lng", label: "Longitude", defaultVisible: true },
+  { key: "main", label: "Main route", defaultVisible: true },
+  { key: "points", label: "Pickup & Drop", defaultVisible: true },
+  { key: "status", label: "Status", defaultVisible: true },
+  { key: "mainorder", label: "Main route order", defaultVisible: false },
+  { key: "pointsorder", label: "Pickup & Drop order", defaultVisible: false },
+];
+
+const TYPES: Record<string, (l: any) => boolean> = {
+  main: (l) => l.is_main_route_enabled,
+  points: (l) => l.is_pickup_enabled || l.is_drop_enabled,
+  both: (l) => l.is_main_route_enabled && (l.is_pickup_enabled || l.is_drop_enabled),
+  main_only: (l) => l.is_main_route_enabled && !(l.is_pickup_enabled || l.is_drop_enabled),
+  points_only: (l) => !l.is_main_route_enabled && (l.is_pickup_enabled || l.is_drop_enabled),
+  none: (l) => !l.is_main_route_enabled && !l.is_pickup_enabled && !l.is_drop_enabled,
+};
+
+const SORTS: Record<string, string> = { list: "pickup_order", main: "main_route_order", name: "name", code: "location_code" };
+
+/** How many routes use each location, shown in the disable confirmation. */
+async function routeUsage(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase.from("route_stops").select("location_id");
+  const usage = new Map<string, number>();
+  for (const r of data ?? []) usage.set((r as any).location_id, (usage.get((r as any).location_id) ?? 0) + 1);
+  return usage;
 }
 
-function StatusFilter({ value }: { value?: string }) {
-  return (
-    <select name="status" defaultValue={value ?? ""} className={inputClass} aria-label="Status">
-      <option value="">All statuses</option>
-      <option value="active">Active</option>
-      <option value="inactive">Disabled</option>
-    </select>
-  );
+function disableMessage(l: any, used: number) {
+  return `Disable ${l.name} (${l.location_code})?\n\nIt will disappear from new routes and customer selection. ${
+    used ? `${used} existing route${used === 1 ? "" : "s"} use it and will keep running.` : "No route uses it yet."
+  } Nothing is deleted and past bookings are unaffected.`;
 }
 
-async function MainTab({ sp }: { sp: Search }) {
-  const supabase = await createClient();
-  const [{ data: locations }, { data: pointRows }] = await Promise.all([
-    supabase.from("main_locations").select("*").order("display_order").order("name"),
-    supabase.from("pickup_drop_points").select("main_location_id"),
-  ]);
-  const counts = new Map<string, number>();
-  for (const p of pointRows ?? []) counts.set((p as any).main_location_id, (counts.get((p as any).main_location_id) ?? 0) + 1);
-
-  const q = (sp.q ?? "").trim().toLowerCase();
-  const rows = (locations ?? []).filter(
-    (l: any) => (!q || l.name.toLowerCase().includes(q)) && (!sp.status || (sp.status === "active") === l.is_active),
-  );
-
-  return (
-    <div className="space-y-6">
-      <form className="grid grid-cols-1 gap-3 md:grid-cols-4" method="get">
-        <input type="hidden" name="tab" value="main" />
-        <input name="q" defaultValue={sp.q ?? ""} placeholder="Search locations" className={`${inputClass} md:col-span-2`} />
-        <StatusFilter value={sp.status} />
-        <Button type="submit" variant="outline">
-          Filter
-        </Button>
-      </form>
-
-      <div className="space-y-2">
-        <div className="hidden grid-cols-12 gap-3 px-4 text-xs font-medium text-text-secondary md:grid">
-          <span className="col-span-4">Location</span>
-          <span className="col-span-1">Order</span>
-          <span className="col-span-1">Status</span>
-          <span className="col-span-2">Created</span>
-          <span className="col-span-4">Actions</span>
-        </div>
-        {rows.map((l: any) => (
-          <form key={l.id} action={saveLocation.bind(null, l.id)} className="grid grid-cols-1 items-center gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-12">
-            <input name="name" defaultValue={l.name} className={`${inputClass} md:col-span-4`} aria-label="Location name" />
-            <input name="display_order" type="number" defaultValue={l.display_order} className={`${inputClass} md:col-span-1`} aria-label="Display order" />
-            <div className="md:col-span-1">
-              <Badge status={l.is_active ? "active" : "inactive"} />
-            </div>
-            <span className="text-xs text-text-tertiary md:col-span-2">{new Date(l.created_at).toLocaleDateString()}</span>
-            <div className="flex flex-wrap items-center gap-2 md:col-span-4">
-              <Button type="submit" variant="outline">
-                Save
-              </Button>
-              {l.is_active ? (
-                <ConfirmButton
-                  variant="destructive"
-                  formAction={setLocationActive.bind(null, l.id, false)}
-                  message={`Disable ${l.name}?\n\nIt will no longer appear in new routes or customer search. Existing routes, services and bookings keep working.`}
-                >
-                  Disable
-                </ConfirmButton>
-              ) : (
-                <Button type="submit" variant="secondary" formAction={setLocationActive.bind(null, l.id, true)}>
-                  Enable
-                </Button>
-              )}
-              <Link href={`/locations?tab=points&loc=${l.id}`} className="text-xs text-primary hover:underline">
-                {counts.get(l.id) ?? 0} points
-              </Link>
-            </div>
-          </form>
-        ))}
-        {!rows.length && <EmptyState message="No locations match." />}
-      </div>
-
-      <section>
-        <SectionHeader title="Add main location" />
-        <form action={saveLocation.bind(null, null)} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-6">
-          <input name="name" placeholder="Location name" className={`${inputClass} md:col-span-3`} />
-          <input name="display_order" type="number" placeholder="Order (blank = last)" className={`${inputClass} md:col-span-2`} />
-          <Button type="submit">Add location</Button>
-        </form>
-        <p className="mt-2 text-xs text-text-tertiary">
-          Main locations are the major places a bus route can start, pass through or end. Add detailed bus stands and landmarks on the Pickup &amp; Drop Points tab.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-async function PointsTab({ sp }: { sp: Search }) {
-  const supabase = await createClient();
-  const [{ data: locations }, { data: points }] = await Promise.all([
-    supabase.from("main_locations").select("id, name, is_active").order("display_order"),
-    supabase.from("pickup_drop_points").select("*").order("display_order").order("name"),
-  ]);
-  const locName = new Map((locations ?? []).map((l: any) => [l.id, l.name as string]));
-  const order = new Map((locations ?? []).map((l: any, i: number) => [l.id, i]));
-
-  const q = (sp.q ?? "").trim().toLowerCase();
-  const rows = (points ?? [])
-    .filter((p: any) => (!q || p.name.toLowerCase().includes(q)) && (!sp.loc || p.main_location_id === sp.loc) && (!sp.status || (sp.status === "active") === p.is_active))
-    .sort((a: any, b: any) => (order.get(a.main_location_id) ?? 99) - (order.get(b.main_location_id) ?? 99) || a.display_order - b.display_order || a.name.localeCompare(b.name));
-
-  const locationSelect = (name: string, value?: string, withAll = false) => (
-    <select name={name} defaultValue={value ?? ""} className={inputClass} aria-label="Main location">
-      {withAll ? <option value="">All main locations</option> : <option value="">Select main location…</option>}
-      {(locations ?? []).map((l: any) => (
-        <option key={l.id} value={l.id}>
-          {l.name}
-          {l.is_active ? "" : " (disabled)"}
-        </option>
-      ))}
-    </select>
-  );
-
-  return (
-    <div className="space-y-6">
-      <form className="grid grid-cols-1 gap-3 md:grid-cols-5" method="get">
-        <input type="hidden" name="tab" value="points" />
-        <input name="q" defaultValue={sp.q ?? ""} placeholder="Search by point name" className={`${inputClass} md:col-span-2`} />
-        {locationSelect("loc", sp.loc, true)}
-        <StatusFilter value={sp.status} />
-        <Button type="submit" variant="outline">
-          Filter
-        </Button>
-      </form>
-
-      <div className="space-y-2">
-        {rows.map((p: any) => (
-          <form key={p.id} action={savePoint.bind(null, p.id)} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-12">
-            <label className="text-xs md:col-span-3">
-              Point name
-              <input name="name" defaultValue={p.name} className={inputClass} />
-            </label>
-            <label className="text-xs md:col-span-3">
-              Parent main location
-              {locationSelect("main_location_id", p.main_location_id)}
-            </label>
-            <label className="text-xs md:col-span-3">
-              Landmark
-              <input name="landmark" defaultValue={p.landmark ?? ""} className={inputClass} />
-            </label>
-            <label className="text-xs md:col-span-3">
-              Address
-              <input name="address" defaultValue={p.address ?? ""} className={inputClass} />
-            </label>
-            <label className="text-xs md:col-span-2">
-              Latitude
-              <input name="latitude" defaultValue={p.latitude ?? ""} inputMode="decimal" className={inputClass} />
-            </label>
-            <label className="text-xs md:col-span-2">
-              Longitude
-              <input name="longitude" defaultValue={p.longitude ?? ""} inputMode="decimal" className={inputClass} />
-            </label>
-            <label className="text-xs md:col-span-1">
-              Order
-              <input name="display_order" type="number" defaultValue={p.display_order} className={inputClass} />
-            </label>
-            <div className="flex flex-wrap items-end gap-3 text-xs md:col-span-4">
-              <label className="flex items-center gap-1">
-                <input type="checkbox" name="is_pickup_allowed" defaultChecked={p.is_pickup_allowed} /> Pickup
-              </label>
-              <label className="flex items-center gap-1">
-                <input type="checkbox" name="is_drop_allowed" defaultChecked={p.is_drop_allowed} /> Drop
-              </label>
-              <label className="flex items-center gap-1">
-                <input type="checkbox" name="is_active" defaultChecked={p.is_active} /> Active
-              </label>
-            </div>
-            <div className="flex items-end gap-2 md:col-span-3">
-              <Badge status={p.is_active ? "active" : "inactive"} />
-              <span className="text-xs text-text-tertiary">{locName.get(p.main_location_id)}</span>
-            </div>
-            <div className="flex flex-wrap items-end gap-2 md:col-span-12">
-              <Button type="submit" variant="outline">
-                Save
-              </Button>
-              {p.is_active ? (
-                <ConfirmButton
-                  variant="destructive"
-                  formAction={setPointActive.bind(null, p.id, false)}
-                  message={`Disable ${p.name}?\n\nIt will no longer be offered when operators configure routes or customers pick a stop. Buses already using it keep their stop and past bookings are unaffected.`}
-                >
-                  Disable point
-                </ConfirmButton>
-              ) : (
-                <Button type="submit" variant="secondary" formAction={setPointActive.bind(null, p.id, true)}>
-                  Enable point
-                </Button>
-              )}
-            </div>
-          </form>
-        ))}
-        {!rows.length && <EmptyState message="No points match. Add the first one below." />}
-      </div>
-
-      <section>
-        <SectionHeader title="Add pickup / drop point" />
-        <form action={savePoint.bind(null, null)} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-12">
-          <div className="md:col-span-4">{locationSelect("main_location_id", sp.loc)}</div>
-          <input name="name" placeholder="Point name (e.g. Bus Stand)" className={`${inputClass} md:col-span-4`} />
-          <input name="landmark" placeholder="Landmark (optional)" className={`${inputClass} md:col-span-4`} />
-          <input name="address" placeholder="Address (optional)" className={`${inputClass} md:col-span-4`} />
-          <input name="latitude" placeholder="Latitude (optional)" inputMode="decimal" className={`${inputClass} md:col-span-2`} />
-          <input name="longitude" placeholder="Longitude (optional)" inputMode="decimal" className={`${inputClass} md:col-span-2`} />
-          <input name="display_order" type="number" placeholder="Order" className={`${inputClass} md:col-span-1`} />
-          <div className="flex items-center gap-3 text-sm md:col-span-3">
-            <label className="flex items-center gap-1">
-              <input type="checkbox" name="is_pickup_allowed" defaultChecked /> Pickup
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="checkbox" name="is_drop_allowed" defaultChecked /> Drop
-            </label>
-          </div>
-          <Button type="submit" className="md:col-span-3">
-            Add point
-          </Button>
-        </form>
-        <p className="mt-2 text-xs text-text-tertiary">
-          Only add verified points. Coordinates are optional and can be filled in later. A point is offered to customers only for buses whose route uses it.
-        </p>
-      </section>
-    </div>
-  );
-}
+const th = "px-3 py-2 text-left text-xs font-medium text-text-secondary";
+const td = "px-3 py-2 align-middle";
 
 export default async function LocationsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const tab = sp.tab === "points" ? "points" : "main";
+  const supabase = await createClient();
+  const sortKey = sp.sort && SORTS[sp.sort] ? sp.sort : "list";
+  const { data: all } = await supabase.from("locations").select("*").order(SORTS[sortKey]).order("name");
+  const usage = await routeUsage(supabase);
+
+  const q = (sp.q ?? "").trim().toLowerCase();
+  const typeFilter = sp.type ? TYPES[sp.type] : undefined;
+  const rows = (all ?? []).filter(
+    (l: any) =>
+      (!q || l.name.toLowerCase().includes(q) || l.location_code.toLowerCase().includes(q)) &&
+      (!typeFilter || typeFilter(l)) &&
+      (!sp.status || (sp.status === "active") === l.is_active),
+  );
 
   return (
-    <div>
-      <PageTitle title="Location Management" subtitle="The shared location database used by the admin panel, operator app and customer app. Only admins can change it." />
-      {sp.error && <p className="mb-4 rounded-md border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">{sp.error}</p>}
-      {sp.notice && <p className="mb-4 rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">{sp.notice}</p>}
-      <Tabs tab={tab} />
-      {tab === "main" ? <MainTab sp={sp} /> : <PointsTab sp={sp} />}
+    <div className="space-y-6">
+      <PageTitle
+        title="Location Management"
+        subtitle="One location list for the whole platform. Tick Main route and/or Pickup & Drop on a location to assign it; every app reads this same list. Only admins can change it."
+      />
+      {sp.error && <p className="rounded-md border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">{sp.error}</p>}
+      {sp.notice && <p className="rounded-md border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">{sp.notice}</p>}
+
+      <form className="grid grid-cols-1 gap-3 md:grid-cols-6" method="get">
+        <input name="q" defaultValue={sp.q ?? ""} placeholder="Search by name or code" className={`${inputClass} md:col-span-2`} />
+        <select name="type" defaultValue={sp.type ?? ""} className={inputClass} aria-label="Location type">
+          <option value="">All location types</option>
+          <option value="main">Main route (any)</option>
+          <option value="points">Pickup &amp; Drop (any)</option>
+          <option value="both">Both</option>
+          <option value="main_only">Main route only</option>
+          <option value="points_only">Pickup &amp; Drop only</option>
+          <option value="none">Not assigned</option>
+        </select>
+        <select name="status" defaultValue={sp.status ?? ""} className={inputClass} aria-label="Status">
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Disabled</option>
+        </select>
+        <select name="sort" defaultValue={sortKey} className={inputClass} aria-label="Sort by">
+          <option value="list">Sort: List order</option>
+          <option value="main">Sort: Main route order</option>
+          <option value="name">Sort: Name</option>
+          <option value="code">Sort: Code</option>
+        </select>
+        <Button type="submit" variant="outline">
+          Filter
+        </Button>
+      </form>
+
+      <p className="text-xs text-text-tertiary">
+        Showing {rows.length} of {all?.length ?? 0} locations.
+      </p>
+
+      <ColumnToggle columns={COLUMNS}>
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+          <table className="w-full min-w-max border-collapse text-sm">
+            <thead className="border-b border-border">
+              <tr>
+                <th className={`${th} col-code`}>Code</th>
+                <th className={th}>Location name</th>
+                <th className={`${th} col-lat`}>Latitude</th>
+                <th className={`${th} col-lng`}>Longitude</th>
+                <th className={`${th} col-main text-center`}>Main route</th>
+                <th className={`${th} col-points text-center`}>Pickup &amp; Drop</th>
+                <th className={`${th} col-mainorder`}>Main order</th>
+                <th className={`${th} col-pointsorder`}>P&amp;D order</th>
+                <th className={`${th} col-status`}>Status</th>
+                <th className={th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((l: any) => {
+                const fid = `loc-${l.id}`;
+                const points = l.is_pickup_enabled && l.is_drop_enabled;
+                return (
+                  <tr key={l.id} className={`border-b border-border last:border-0 ${l.is_active ? "" : "opacity-60"}`}>
+                    <td className={`${td} col-code`}>
+                      <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-xs font-medium text-primary">{l.location_code}</span>
+                    </td>
+                    <td className={td}>
+                      <input form={fid} name="name" defaultValue={l.name} className={`${inputClass} w-52`} aria-label="Location name" />
+                    </td>
+                    <td className={`${td} col-lat`}>
+                      <input form={fid} name="latitude" defaultValue={l.latitude ?? ""} inputMode="decimal" placeholder="—" className={`${inputClass} w-28`} aria-label="Latitude" />
+                    </td>
+                    <td className={`${td} col-lng`}>
+                      <input form={fid} name="longitude" defaultValue={l.longitude ?? ""} inputMode="decimal" placeholder="—" className={`${inputClass} w-28`} aria-label="Longitude" />
+                    </td>
+                    <td className={`${td} col-main text-center`}>
+                      <input form={fid} type="checkbox" name="is_main_route_enabled" defaultChecked={l.is_main_route_enabled} aria-label="Main route" />
+                    </td>
+                    <td className={`${td} col-points text-center`}>
+                      <input form={fid} type="checkbox" name="is_points_enabled" defaultChecked={points} aria-label="Pickup and drop" />
+                    </td>
+                    <td className={`${td} col-mainorder`}>
+                      <input form={fid} name="main_route_order" type="number" defaultValue={l.main_route_order} className={`${inputClass} w-20`} aria-label="Main route order" />
+                    </td>
+                    <td className={`${td} col-pointsorder`}>
+                      <input form={fid} name="points_order" type="number" defaultValue={l.pickup_order} className={`${inputClass} w-20`} aria-label="Pickup and drop order" />
+                    </td>
+                    <td className={`${td} col-status`}>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input form={fid} type="checkbox" name="is_active" defaultChecked={l.is_active} />
+                        <Badge status={l.is_active ? "active" : "inactive"} />
+                      </label>
+                    </td>
+                    <td className={td}>
+                      <div className="flex items-center gap-2">
+                        <Button form={fid} type="submit" variant="outline">
+                          Save
+                        </Button>
+                        {l.is_active ? (
+                          <ConfirmButton form={fid} variant="destructive" formAction={setLocationActive.bind(null, l.id, false)} message={disableMessage(l, usage.get(l.id) ?? 0)}>
+                            Disable
+                          </ConfirmButton>
+                        ) : (
+                          <Button form={fid} type="submit" variant="secondary" formAction={setLocationActive.bind(null, l.id, true)}>
+                            Enable
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {!rows.length && <EmptyState message="No locations match." />}
+        </div>
+        {rows.map((l: any) => (
+          <form key={l.id} id={`loc-${l.id}`} action={saveRow.bind(null, l.id)} />
+        ))}
+      </ColumnToggle>
+
+      <section>
+        <SectionHeader title="Create a new location" />
+        <form action={createLocation} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-12">
+          <input name="name" placeholder="Location name" className={`${inputClass} md:col-span-5`} />
+          <input name="latitude" placeholder="Latitude (optional)" inputMode="decimal" className={`${inputClass} md:col-span-2`} />
+          <input name="longitude" placeholder="Longitude (optional)" inputMode="decimal" className={`${inputClass} md:col-span-2`} />
+          <div className="flex flex-wrap items-center gap-4 text-sm md:col-span-3">
+            <label className="flex items-center gap-1">
+              <input type="checkbox" name="is_main_route_enabled" defaultChecked /> Main route
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" name="is_points_enabled" defaultChecked /> Pickup &amp; Drop
+            </label>
+          </div>
+          <Button type="submit" className="md:col-span-12 md:w-48">
+            Add location
+          </Button>
+        </form>
+        <p className="mt-2 text-xs text-text-tertiary">The permanent code (T8 + three letters + three digits) is generated automatically. New locations go to the end of each list.</p>
+      </section>
     </div>
   );
 }

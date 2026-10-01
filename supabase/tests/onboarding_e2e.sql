@@ -115,9 +115,9 @@ end $$;
 reset role;
 select set_config('request.jwt.claims', '', true);
 insert into public.countries (code, name) values ('ZZ', 'Testland') on conflict (code) do nothing;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'E Src') returning id) insert into t_ref select 'SRC', id from c;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'E Mid') returning id) insert into t_ref select 'MID', id from c;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'E Dst') returning id) insert into t_ref select 'DST', id from c;
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'E Src') returning id) insert into t_ref select 'SRC', id from c;
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'E Mid') returning id) insert into t_ref select 'MID', id from c;
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'E Dst') returning id) insert into t_ref select 'DST', id from c;
 
 -- B1. operator registers and completes phase 1 of onboarding
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
@@ -178,14 +178,14 @@ begin
       jsonb_build_object('name','Middle','city_id',(select id from t_ref where tag='MID'),'is_boarding',true,'is_dropping',true,'arrival_offset_min',120,'departure_offset_min',125),
       jsonb_build_object('name','Dest','city_id',(select id from t_ref where tag='DST'),'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
   perform public.save_bus_schedule(v_bus, '06:00', '{1,2,3,4,5,6,7}', 30, 30, 10);
-  update public.buses set exterior_photo_path = 'x/e.jpg', interior_photo_path = 'x/i.jpg' where id = v_bus;
+  update public.buses set exterior_photo_keys = array['x/e1.jpg','x/e2.jpg'], interior_photo_keys = array['x/i1.jpg','x/i2.jpg'] where id = v_bus;
   insert into public.bus_documents (bus_id, doc_type, file_path, expiry_date) values
-    (v_bus, 'rc', 'x/rc.pdf', null), (v_bus, 'insurance', 'x/i.pdf', current_date + 200), (v_bus, 'fitness', 'x/f.pdf', current_date + 200),
-    (v_bus, 'permit', 'x/p.pdf', current_date + 200), (v_bus, 'puc', 'x/u.pdf', current_date + 200);
+    (v_bus, 'rc', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/rc_1.pdf', null), (v_bus, 'insurance', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/insurance_1.pdf', current_date + 200), (v_bus, 'fitness', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/fitness_1.pdf', current_date + 200),
+    (v_bus, 'permit', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/permit_1.pdf', current_date + 200), (v_bus, 'puc', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/puc_1.pdf', current_date + 200);
 end $$;
 
-insert into t_ref select 'B_ORIGIN', id from public.boarding_points where name = 'Origin' and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
-insert into t_ref select 'D_MID', id from public.dropping_points where name = 'Middle' and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+insert into t_ref select 'B_ORIGIN', id from public.boarding_points where city_id = (select id from t_ref where tag = 'SRC') and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+insert into t_ref select 'D_MID', id from public.dropping_points where city_id = (select id from t_ref where tag = 'MID') and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
 
 do $$
 declare v_bus uuid := (select id from t_ref where tag = 'BUS'); r jsonb; b public.buses;
@@ -225,6 +225,8 @@ begin
   perform public.activate_bus(v_bus);
   n := public.generate_bus_trips(v_bus, current_date + 1, current_date + 3);
   if n <> 3 then raise exception 'FAIL B8: expected 3 trips, got %', n; end if;
+  -- customers read trips only through the RPCs; remember the first trip's id for them
+  insert into t_ref select 'TRIP', id from public.bus_trips where bus_id = v_bus order by travel_date limit 1;
 end $$;
 
 -- B6. customer searches, holds and books at the configured stop-to-stop fare
@@ -238,8 +240,8 @@ declare
   bo uuid := (select id from t_ref where tag = 'B_ORIGIN');
   dm uuid := (select id from t_ref where tag = 'D_MID');
 begin
-  select id into v_trip from public.bus_trips where bus_id = v_bus order by travel_date limit 1;
-  res := public.search_trips((select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'MID'), (select travel_date from public.bus_trips where id = v_trip));
+  select id into v_trip from t_ref where tag = 'TRIP';
+  res := public.search_trips((select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'MID'), current_date + 1);
   select e into hit from jsonb_array_elements(res -> 'direct') e where (e ->> 'trip_id')::uuid = v_trip;
   if hit is null then raise exception 'FAIL B9: new bus not searchable after activation'; end if;
   if (hit ->> 'min_fare_cents')::int <> 21000 then raise exception 'FAIL B10: expected 21000 (200 + 5%%), got %', hit; end if;

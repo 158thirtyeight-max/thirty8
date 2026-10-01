@@ -17,11 +17,11 @@ grant all on t_city to authenticated;
 
 insert into public.countries (code, name) values ('ZZ', 'Testland') on conflict (code) do nothing;
 with c as (
-  insert into public.cities (country_id, name)
+  insert into public.locations (country_id, name)
   values ((select id from public.countries where code = 'ZZ'), 'Test Origin') returning id
 ) insert into t_city select 'SRC', id from c;
 with c as (
-  insert into public.cities (country_id, name)
+  insert into public.locations (country_id, name)
   values ((select id from public.countries where code = 'ZZ'), 'Test Destination') returning id
 ) insert into t_city select 'DST', id from c;
 
@@ -31,7 +31,7 @@ create or replace function public.t_stops(p_src uuid, p_dst uuid, p jsonb) retur
     s.v || jsonb_build_object('city_id', case
       when s.i = 1 then p_src
       when s.i = jsonb_array_length(p) then p_dst
-      else (select id from public.cities where display_order = s.i)
+      else (select id from public.locations where main_route_order = s.i and is_main_route_enabled)
     end) order by s.i)
   from (select e.ordinality::int as i, e.value as v from jsonb_array_elements(p) with ordinality as e) s
 $f$;
@@ -97,9 +97,9 @@ declare
   v_route uuid := (select route_id from public.bus_services where bus_id = (select id from t_bus where tag = 'A1'));
   v_rangat uuid; v_origin uuid; v_dest uuid; r jsonb; n int;
 begin
-  select id into v_rangat from public.boarding_points where route_id = v_route and name = 'Rangat';
-  select id into v_origin from public.boarding_points where route_id = v_route and name = 'Vijayapuram Bus Stand';
-  select id into v_dest from public.dropping_points where route_id = v_route and name = 'Diglipur';
+  select id into v_rangat from public.boarding_points where route_id = v_route and city_id = (select id from public.locations where main_route_order = 3 and is_main_route_enabled);
+  select id into v_origin from public.boarding_points where route_id = v_route and city_id = v_src;
+  select id into v_dest from public.dropping_points where route_id = v_route and city_id = v_dst;
   -- drop Bambooflat and Mayabunder, keep Rangat by id
   r := public.save_bus_route(v_bus, v_src, v_dst, 200, '06:30', 480, '{1,2,3,4,5,6,7}', public.t_stops(v_src, v_dst, jsonb_build_array(
     jsonb_build_object('name','Vijayapuram Bus Stand','is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0,'boarding_point_id',v_origin),

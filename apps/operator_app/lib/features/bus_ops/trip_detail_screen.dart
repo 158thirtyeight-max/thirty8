@@ -2,6 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
 import 'qr_scanner_screen.dart';
@@ -24,13 +25,23 @@ class TripDetailScreen extends ConsumerWidget {
 
   static const _statusFlow = ['scheduled', 'boarding', 'departed', 'arrived'];
 
+  static String _statusError(Object e) {
+    final msg = e is PostgrestException ? e.message : e.toString();
+    if (msg.contains('trip_has_bookings')) {
+      return 'This trip has passenger bookings, so it cannot be cancelled here. Contact support to cancel it and refund passengers.';
+    }
+    if (msg.contains('invalid_transition')) return 'That status change is not allowed from the current status.';
+    if (msg.contains('Operator is not approved')) return 'Your operator account is not approved.';
+    return 'Could not update status: $msg';
+  }
+
   Future<void> _updateStatus(BuildContext context, WidgetRef ref, String newStatus) async {
     try {
-      await ref.read(supabaseProvider).from('bus_trips').update({'status': newStatus}).eq('id', tripId);
+      await ref.read(supabaseProvider).rpc('set_trip_status', params: {'p_trip_id': tripId, 'p_status': newStatus});
       ref.invalidate(tripProvider(tripId));
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update status: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_statusError(e))));
       }
     }
   }

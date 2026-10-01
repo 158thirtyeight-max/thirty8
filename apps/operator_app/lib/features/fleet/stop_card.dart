@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 
 import 'route_model.dart';
 
-/// One stop of a bus route. Every stop is an admin-managed main location; the
-/// exact pickup / drop point inside it is picked from the master list, filtered
-/// by the stop's boarding / dropping flags. Operators cannot type new places.
+/// One stop of a bus route. A stop is a location from the admin-managed master
+/// list, referenced by id: the origin and destination follow the main-route
+/// pickers at the top of the screen, intermediate stops are picked from every
+/// active location that allows what the stop is used for (pickup and/or drop).
+/// Operators cannot type new places.
 class StopCard extends StatelessWidget {
   const StopCard({
     super.key,
@@ -17,8 +19,8 @@ class StopCard extends StatelessWidget {
     required this.lockDropping,
     required this.lockLocation,
     required this.enabled,
-    required this.cities,
-    required this.points,
+    required this.locations,
+    required this.takenIds,
     required this.onPickTime,
     required this.onChanged,
     this.onRemove,
@@ -36,41 +38,46 @@ class StopCard extends StatelessWidget {
   final bool lockLocation;
   final bool enabled;
 
-  /// Active main locations, in admin order.
-  final List<Map<String, dynamic>> cities;
+  /// Every active location (id, name, location_code, is_pickup_enabled, is_drop_enabled), in admin order.
+  final List<Map<String, dynamic>> locations;
 
-  /// Active master pickup / drop points of every main location.
-  final List<Map<String, dynamic>> points;
+  /// Locations already used by other stops of this route (a location appears once).
+  final Set<String> takenIds;
   final void Function(bool arrival) onPickTime;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
   final int? dragIndex;
 
-  String _cityName(String? id) => cities.firstWhere((c) => c['id'] == id, orElse: () => const {})['name'] as String? ?? '';
+  Map<String, dynamic>? get _current => locations.cast<Map<String, dynamic>?>().firstWhere((l) => l!['id'] == stop.cityId, orElse: () => null);
 
-  /// Points of this stop's location that allow what the stop is used for.
-  List<Map<String, dynamic>> get _options => [
-        for (final p in points)
-          if (p['main_location_id'] == stop.cityId &&
-              (!stop.isBoarding || p['is_pickup_allowed'] == true) &&
-              (!stop.isDropping || p['is_drop_allowed'] == true))
-            p,
-      ];
+  String _name(String? id) => locations.firstWhere((l) => l['id'] == id, orElse: () => const {})['name'] as String? ?? '';
 
-  /// Falls back to the location itself when the chosen point no longer fits the stop's flags.
-  void _revalidatePoint() {
-    if (stop.masterPointId != null && !_options.any((p) => p['id'] == stop.masterPointId)) {
-      stop
-        ..masterPointId = null
-        ..name = _cityName(stop.cityId);
-    }
+  bool get _pickupOk => _current == null || _current!['is_pickup_enabled'] == true;
+  bool get _dropOk => _current == null || _current!['is_drop_enabled'] == true;
+
+  /// Stops can only be pickup / drop where the location allows it.
+  void _clampFlags() {
+    if (!_pickupOk && !lockBoarding) stop.isBoarding = false;
+    if (!_dropOk && !lockDropping) stop.isDropping = false;
   }
+
+  /// Locations offered for this stop: active, not used elsewhere on the route, and allowing
+  /// pickup / drop as the stop requires. The stop's own current location is always listed.
+  List<Map<String, dynamic>> get _options => [
+        for (final l in locations)
+          if (l['id'] == stop.cityId ||
+              (!takenIds.contains(l['id']) &&
+                  (!stop.isBoarding || l['is_pickup_enabled'] == true) &&
+                  (!stop.isDropping || l['is_drop_enabled'] == true)))
+            l,
+      ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final options = _options;
-    final legacyName = stop.masterPointId == null && stop.name.trim().isNotEmpty && stop.name.trim() != _cityName(stop.cityId);
+    final current = _current;
+    final blocksPickup = current != null && !_pickupOk;
+    final blocksDrop = current != null && !_dropOk;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -88,92 +95,63 @@ class StopCard extends StatelessWidget {
             ),
             if (lockLocation)
               Text(
-                stop.cityId == null ? 'Choose the ${label.toLowerCase()} city above' : _cityName(stop.cityId),
+                stop.cityId == null ? 'Choose the ${label.toLowerCase()} location above' : '${_name(stop.cityId)}  ·  ${current?['location_code'] ?? ''}',
                 style: theme.textTheme.titleSmall,
               )
             else
               DropdownButtonFormField<String>(
-                key: ValueKey('loc-${stop.cityId}'),
-                initialValue: cities.any((c) => c['id'] == stop.cityId) ? stop.cityId : null,
+                key: ValueKey('loc-${stop.cityId}-${stop.isBoarding}-${stop.isDropping}'),
+                initialValue: _options.any((l) => l['id'] == stop.cityId) ? stop.cityId : null,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Main location'),
-                items: [for (final c in cities) DropdownMenuItem(value: c['id'] as String, child: Text(c['name'] as String))],
+                decoration: const InputDecoration(labelText: 'Location'),
+                items: [
+                  for (final l in _options)
+                    DropdownMenuItem(value: l['id'] as String, child: Text('${l['name']}  ·  ${l['location_code']}', overflow: TextOverflow.ellipsis)),
+                ],
                 onChanged: enabled
                     ? (v) {
                         stop
                           ..cityId = v
-                          ..masterPointId = null
-                          ..name = _cityName(v);
+                          ..name = _name(v);
+                        _clampFlags();
                         onChanged();
                       }
                     : null,
-              ),
-            if (stop.cityId != null) ...[
-              const SizedBox(height: AppSpacing.xs),
-              if (options.isEmpty)
-                Text(
-                  'No pickup / drop points are set up for ${_cityName(stop.cityId)} yet, so this stop uses the location itself.',
-                  style: theme.textTheme.bodySmall,
-                )
-              else
-                DropdownButtonFormField<String?>(
-                  key: ValueKey('pt-${stop.cityId}-${stop.masterPointId}-${stop.isBoarding}-${stop.isDropping}'),
-                  initialValue: options.any((p) => p['id'] == stop.masterPointId) ? stop.masterPointId : null,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Pickup / drop point'),
-                  items: [
-                    DropdownMenuItem<String?>(value: null, child: Text('${_cityName(stop.cityId)} (location only)')),
-                    for (final p in options)
-                      DropdownMenuItem<String?>(
-                        value: p['id'] as String,
-                        child: Text(
-                          (p['landmark'] as String?)?.trim().isNotEmpty == true ? '${p['name']} · ${p['landmark']}' : p['name'] as String,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: enabled
-                      ? (v) {
-                          stop.masterPointId = v;
-                          stop.name = v == null ? _cityName(stop.cityId) : options.firstWhere((p) => p['id'] == v)['name'] as String;
-                          onChanged();
-                        }
-                      : null,
-                ),
-            ],
-            if (legacyName)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Text('Current stop name: ${stop.name}', style: theme.textTheme.bodySmall),
               ),
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: AppSpacing.sm,
               children: [
                 FilterChip(
-                  label: const Text('Boarding'),
+                  label: const Text('Pickup'),
                   selected: stop.isBoarding,
-                  onSelected: (enabled && !lockBoarding)
+                  onSelected: (enabled && !lockBoarding && !blocksPickup)
                       ? (v) {
                           stop.isBoarding = v;
-                          _revalidatePoint();
                           onChanged();
                         }
                       : null,
                 ),
                 FilterChip(
-                  label: const Text('Dropping'),
+                  label: const Text('Drop'),
                   selected: stop.isDropping,
-                  onSelected: (enabled && !lockDropping)
+                  onSelected: (enabled && !lockDropping && !blocksDrop)
                       ? (v) {
                           stop.isDropping = v;
-                          _revalidatePoint();
                           onChanged();
                         }
                       : null,
                 ),
               ],
             ),
+            if (blocksPickup || blocksDrop)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  '${blocksPickup ? 'Pickup' : ''}${blocksPickup && blocksDrop ? ' and ' : ''}${blocksDrop ? 'Drop' : ''} is not enabled at ${_name(stop.cityId)}.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                ),
+              ),
             Wrap(
               spacing: AppSpacing.sm,
               children: [

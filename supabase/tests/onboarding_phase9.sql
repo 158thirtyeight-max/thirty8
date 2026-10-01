@@ -16,11 +16,11 @@ create temp table t_ref (tag text, id uuid);
 grant all on t_ref to authenticated;
 
 insert into public.countries (code, name) values ('ZZ', 'Testland') on conflict (code) do nothing;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'T Src') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'T Src') returning id)
   insert into t_ref select 'SRC', id from c;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'T Mid') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'T Mid') returning id)
   insert into t_ref select 'MID', id from c;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'T Dst') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'T Dst') returning id)
   insert into t_ref select 'DST', id from c;
 
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
@@ -56,10 +56,10 @@ begin
   if not (r ->> 'valid')::boolean then raise exception 'FAIL setup route: %', r -> 'errors'; end if;
 end $$;
 
-insert into t_ref select 'B_ORIGIN', id from public.boarding_points where name = 'Origin' and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
-insert into t_ref select 'B_MID',    id from public.boarding_points where name = 'Middle' and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
-insert into t_ref select 'D_MID',    id from public.dropping_points where name = 'Middle' and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
-insert into t_ref select 'D_DEST',   id from public.dropping_points where name = 'Dest' and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+insert into t_ref select 'B_ORIGIN', id from public.boarding_points where city_id = (select id from t_ref where tag = 'SRC') and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+insert into t_ref select 'B_MID',    id from public.boarding_points where city_id = (select id from t_ref where tag = 'MID') and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+insert into t_ref select 'D_MID',    id from public.dropping_points where city_id = (select id from t_ref where tag = 'MID') and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+insert into t_ref select 'D_DEST',   id from public.dropping_points where city_id = (select id from t_ref where tag = 'DST') and route_id = (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
 
 do $$
 declare

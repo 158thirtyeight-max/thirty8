@@ -27,8 +27,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="flex min-h-screen bg-background text-text-primary">
       <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-surface p-4">
         <div className="mb-6 px-2">
-          <h1 className="text-lg font-semibold text-text-primary">Thirty8 Admin</h1>
-          <p className="mt-0.5 truncate text-xs text-text-tertiary">{user.email}</p>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/thirty8-plus-mark.png" alt="" className="h-7 w-7" />
+            <span className="text-lg font-semibold text-text-primary">thirty8 <span className="font-normal text-text-tertiary">plus</span></span>
+          </div>
+          <p className="mt-1 truncate text-xs text-text-tertiary">Admin · {user.email}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {NAV_ITEMS.slice(0, 3).map((item) => (

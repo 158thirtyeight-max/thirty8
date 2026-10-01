@@ -12,7 +12,7 @@ export default async function RoutesPage() {
   const supabase = await createClient();
   const { data: routes } = await supabase
     .from("route_templates")
-    .select("*, source:cities!route_templates_source_city_id_fkey(name), destination:cities!route_templates_destination_city_id_fkey(name), stops:route_template_stops(count)")
+    .select("*, source:locations!route_templates_source_city_id_fkey(name), destination:locations!route_templates_destination_city_id_fkey(name), stops:route_template_stops(count)")
     .order("name");
 
   return (

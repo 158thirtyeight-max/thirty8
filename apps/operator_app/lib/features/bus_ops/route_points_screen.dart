@@ -14,57 +14,13 @@ final droppingPointsProvider = FutureProvider.autoDispose.family<List<Map<String
   return await supabase.from('dropping_points').select().eq('route_id', routeId).order('sequence_no');
 });
 
-/// Manages boarding & dropping points for one route — customers pick from
-/// these when booking a trip on this route.
+/// Read-only view of the boarding & dropping points of one route — customers pick
+/// from these when booking. Points are edited in the bus setup (Fleet → bus → Route).
 class RoutePointsScreen extends ConsumerWidget {
   const RoutePointsScreen({super.key, required this.routeId, required this.routeLabel});
 
   final String routeId;
   final String routeLabel;
-
-  Future<void> _addPoint(BuildContext context, WidgetRef ref, {required bool isBoarding}) async {
-    final nameController = TextEditingController();
-    final addressController = TextEditingController();
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(isBoarding ? 'Add boarding point' : 'Add dropping point'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppTextField(controller: nameController, label: 'Name'),
-            const SizedBox(height: 8),
-            AppTextField(controller: addressController, label: 'Address (optional)'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty) return;
-              final table = isBoarding ? 'boarding_points' : 'dropping_points';
-              final existing = await ref.read(supabaseProvider).from(table).select('id').eq('route_id', routeId).count();
-              await ref.read(supabaseProvider).from(table).insert({
-                'route_id': routeId,
-                'name': nameController.text.trim(),
-                'address': addressController.text.trim().isEmpty ? null : addressController.text.trim(),
-                'sequence_no': existing.count + 1,
-              });
-              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-    if (saved == true) {
-      if (isBoarding) {
-        ref.invalidate(boardingPointsProvider(routeId));
-      } else {
-        ref.invalidate(droppingPointsProvider(routeId));
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -80,7 +36,6 @@ class RoutePointsScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Boarding points', style: Theme.of(context).textTheme.titleMedium),
-              IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => _addPoint(context, ref, isBoarding: true)),
             ],
           ),
           boardingAsync.when(
@@ -95,7 +50,6 @@ class RoutePointsScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Dropping points', style: Theme.of(context).textTheme.titleMedium),
-              IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => _addPoint(context, ref, isBoarding: false)),
             ],
           ),
           droppingAsync.when(

@@ -9,13 +9,13 @@ import { deleteRoute, saveRoute, type RouteStopInput } from "./actions";
 
 const inputClass = "w-full rounded-md border border-border bg-background px-2 py-1 text-sm text-text-primary";
 
-type City = { id: string; name: string };
+type City = { id: string; name: string; location_code?: string };
 type Stop = { name: string; city_id: string; is_boarding: boolean; is_dropping: boolean; arrival: string; departure: string };
 
 const blankStop = (over: Partial<Stop> = {}): Stop => ({ name: "", city_id: "", is_boarding: true, is_dropping: true, arrival: "", departure: "", ...over });
 const num = (v: string) => (v.trim() === "" ? null : Number(v));
 
-export default function RouteEditor({ cities, route }: { cities: City[]; route: any | null }) {
+export default function RouteEditor({ cities, mains, route }: { cities: City[]; mains: City[]; route: any | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -107,8 +107,8 @@ export default function RouteEditor({ cities, route }: { cities: City[]; route: 
           Origin city
           <select value={source} onChange={(e) => pickCity("source", e.target.value)} className={inputClass}>
             <option value="">Select…</option>
-            {cities.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+            {mains.map((c) => (
+              <option key={c.id} value={c.id}>{c.location_code ? `${c.name} (${c.location_code})` : c.name}</option>
             ))}
           </select>
         </label>
@@ -116,8 +116,8 @@ export default function RouteEditor({ cities, route }: { cities: City[]; route: 
           Destination city
           <select value={dest} onChange={(e) => pickCity("dest", e.target.value)} className={inputClass}>
             <option value="">Select…</option>
-            {cities.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+            {mains.map((c) => (
+              <option key={c.id} value={c.id}>{c.location_code ? `${c.name} (${c.location_code})` : c.name}</option>
             ))}
           </select>
         </label>
@@ -147,11 +147,11 @@ export default function RouteEditor({ cities, route }: { cities: City[]; route: 
                 <input value={s.name} onChange={(e) => update(i, { name: e.target.value })} className={inputClass} />
               </label>
               <label className="text-xs md:col-span-3">
-                Main location
+                Location
                 <select value={s.city_id} onChange={(e) => update(i, { city_id: e.target.value })} className={inputClass}>
                   <option value="">Select…</option>
                   {cities.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{c.location_code ? `${c.name} (${c.location_code})` : c.name}</option>
                   ))}
                 </select>
               </label>

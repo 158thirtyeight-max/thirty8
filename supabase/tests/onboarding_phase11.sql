@@ -17,9 +17,9 @@ create temp table t_ref (tag text, id uuid);
 grant all on t_ref to authenticated;
 
 insert into public.countries (code, name) values ('ZZ', 'Testland') on conflict (code) do nothing;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'W Src') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'W Src') returning id)
   insert into t_ref select 'SRC', id from c;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'W Dst') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'W Dst') returning id)
   insert into t_ref select 'DST', id from c;
 
 -- Stops must be main locations: first = origin, last = destination, middle stops take seeded main locations.
@@ -28,7 +28,7 @@ create or replace function public.t_stops(p_src uuid, p_dst uuid, p jsonb) retur
     s.v || jsonb_build_object('city_id', case
       when s.i = 1 then p_src
       when s.i = jsonb_array_length(p) then p_dst
-      else (select id from public.cities where display_order = s.i)
+      else (select id from public.locations where main_route_order = s.i and is_main_route_enabled)
     end) order by s.i)
   from (select e.ordinality::int as i, e.value as v from jsonb_array_elements(p) with ordinality as e) s
 $f$;
@@ -68,7 +68,7 @@ begin
       {"name":"B","is_boarding":false,"is_dropping":true,"arrival_offset_min":120,"departure_offset_min":120}]'::jsonb));
   perform public.save_bus_fares(v_bus, '[{"seat_type":"seater","base_fare_cents":30000}]'::jsonb, '[]'::jsonb);
   perform public.save_bus_schedule(v_bus, '07:00', '{1,2,3,4,5,6,7}', 30, 30, 10);
-  update public.buses set exterior_photo_path = 'x/y/e.jpg', interior_photo_path = 'x/y/i.jpg' where id = v_bus;
+  update public.buses set exterior_photo_keys = array['x/y/e1.jpg','x/y/e2.jpg'], interior_photo_keys = array['x/y/i1.jpg','x/y/i2.jpg'] where id = v_bus;
 
   -- documents still missing
   r := public.bus_completeness(v_bus);
@@ -76,11 +76,11 @@ begin
   if not (r -> 'missing') ? 'Registration Certificate (RC)' then raise exception 'FAIL 1d: RC not listed as missing: %', r -> 'missing'; end if;
 
   insert into public.bus_documents (bus_id, doc_type, file_path, expiry_date) values
-    (v_bus, 'rc', 'x/y/rc.pdf', null),
-    (v_bus, 'insurance', 'x/y/ins.pdf', current_date + 200),
-    (v_bus, 'fitness', 'x/y/fit.pdf', current_date + 200),
-    (v_bus, 'permit', 'x/y/per.pdf', current_date + 200),
-    (v_bus, 'puc', 'x/y/puc.pdf', current_date + 200);
+    (v_bus, 'rc', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/rc_1.pdf', null),
+    (v_bus, 'insurance', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/insurance_1.pdf', current_date + 200),
+    (v_bus, 'fitness', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/fitness_1.pdf', current_date + 200),
+    (v_bus, 'permit', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/permit_1.pdf', current_date + 200),
+    (v_bus, 'puc', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/puc_1.pdf', current_date + 200);
 
   r := public.bus_completeness(v_bus);
   if not (r ->> 'complete')::boolean then raise exception 'FAIL 1e: fully set up bus not complete: %', r -> 'missing'; end if;
@@ -129,7 +129,7 @@ set local role authenticated;
 do $$
 declare v_bus uuid := (select id from t_ref where tag = 'BUS'); b public.buses;
 begin
-  update public.buses set interior_photo_path = 'x/y/i2.jpg' where id = v_bus;   -- editable again
+  update public.buses set interior_photo_keys = array['x/y/i3.jpg','x/y/i4.jpg'] where id = v_bus;   -- editable again
   b := public.submit_bus(v_bus);
   if b.lifecycle_status <> 'submitted' or b.review_reason is not null then raise exception 'FAIL 3e: resubmit %', b.lifecycle_status; end if;
 end $$;

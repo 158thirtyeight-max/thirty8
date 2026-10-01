@@ -89,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 48),
-                  Text('Thirty8', style: Theme.of(context).textTheme.headlineMedium),
+                  const Center(child: AppLogoLockup(markSize: 40)),
                   const SizedBox(height: 8),
                   Text('Bus tickets & cargo across the islands', style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 40),

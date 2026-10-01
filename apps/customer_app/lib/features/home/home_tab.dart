@@ -13,7 +13,7 @@ final popularRoutesProvider = FutureProvider.autoDispose<List<Map<String, dynami
   final rows = await ref
       .watch(supabaseProvider)
       .from('route_templates')
-      .select('id, name, source:cities!route_templates_source_city_id_fkey(id, name, state), destination:cities!route_templates_destination_city_id_fkey(id, name, state)')
+      .select('id, name, source:locations!route_templates_source_city_id_fkey(id, name, state), destination:locations!route_templates_destination_city_id_fkey(id, name, state)')
       .eq('is_active', true)
       .order('name');
   return List<Map<String, dynamic>>.from(rows);
@@ -168,7 +168,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   }
 }
 
-/// From / Going to dropdown fed by the shared main_locations table (admin order, active only).
+/// From / Going to dropdown fed by the shared locations table (main-route locations, admin order, active only).
 class _LocationDropdown extends StatelessWidget {
   const _LocationDropdown({required this.icon, required this.label, required this.locations, required this.value, required this.onChanged});
 

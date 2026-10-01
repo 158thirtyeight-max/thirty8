@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Thin wrapper over [TextField] — exists so every text input in the app
 /// carries the same label/hint/error conventions, even though the actual
@@ -29,6 +30,7 @@ class AppTextField extends StatelessWidget {
     this.onFieldSubmitted,
     this.helperText,
     this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
   });
 
   final TextEditingController? controller;
@@ -62,6 +64,7 @@ class AppTextField extends StatelessWidget {
   /// (e.g. "A default 2+2 layout will be generated automatically").
   final String? helperText;
   final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +78,7 @@ class AppTextField extends StatelessWidget {
       maxLength: maxLength,
       textAlign: textAlign,
       textCapitalization: textCapitalization,
+      inputFormatters: inputFormatters,
       style: style,
       validator: validator,
       autovalidateMode: autovalidateMode,

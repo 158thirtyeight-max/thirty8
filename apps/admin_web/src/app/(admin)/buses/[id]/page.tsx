@@ -34,6 +34,20 @@ function clock(baseTime: string, offsetMin: number | null) {
   return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}${day > 0 ? ` (+${day}d)` : ""}`;
 }
 
+// Bus photos live in Cloudflare R2; the database stores object keys.
+function PhotoGrid({ keys, alt }: { keys?: string[] | null; alt: string }) {
+  const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "").replace(/\/+$/, "");
+  if (!keys || keys.length === 0) return <p className="text-text-tertiary">Not provided</p>;
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {keys.map((k) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={k} src={`${base}/${k}`} alt={alt} className="max-h-32 rounded-md" />
+      ))}
+    </div>
+  );
+}
+
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div className="flex justify-between gap-4 py-1">
@@ -89,6 +103,7 @@ export default async function BusDetailPage({
     .maybeSingle();
 
   const routeId = service?.route_id as string | undefined;
+  const { data: catalog } = await supabase.from("route_templates").select("id, name").eq("is_active", true).order("name");
   const [
     { data: documents },
     { data: layout },
@@ -103,7 +118,6 @@ export default async function BusDetailPage({
     { data: dstCity },
   ] = await Promise.all([
     supabase.from("bus_documents").select("*").eq("bus_id", id).order("created_at"),
-  const { data: catalog } = await supabase.from("route_templates").select("id, name").eq("is_active", true).order("name");
     supabase.from("bus_layouts").select("*").eq("bus_id", id).eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle(),
     routeId ? supabase.from("boarding_points").select("*").eq("route_id", routeId).eq("is_active", true).order("sequence_no") : Promise.resolve({ data: [] as any[] }),
     routeId ? supabase.from("dropping_points").select("*").eq("route_id", routeId).eq("is_active", true).order("sequence_no") : Promise.resolve({ data: [] as any[] }),
@@ -117,8 +131,8 @@ export default async function BusDetailPage({
       .or(`entity_id.eq.${id},after->>bus_id.eq.${id}`)
       .order("created_at", { ascending: false })
       .limit(100),
-    service ? supabase.from("cities").select("name").eq("id", service.service_source_city_id).maybeSingle() : Promise.resolve({ data: null as any }),
-    service ? supabase.from("cities").select("name").eq("id", service.service_dest_city_id).maybeSingle() : Promise.resolve({ data: null as any }),
+    service ? supabase.from("locations").select("name").eq("id", service.service_source_city_id).maybeSingle() : Promise.resolve({ data: null as any }),
+    service ? supabase.from("locations").select("name").eq("id", service.service_dest_city_id).maybeSingle() : Promise.resolve({ data: null as any }),
   ]);
 
   const { data: seats } = layout
@@ -142,7 +156,6 @@ export default async function BusDetailPage({
       if (data?.signedUrl) signed[d.id] = data.signedUrl;
     }),
   );
-  const photoUrl = (path?: string | null) => (path ? supabase.storage.from("bus-photos").getPublicUrl(path).data.publicUrl : null);
 
   const state: string = bus.is_legacy ? (bus.legacy_migration_status ? `legacy_${bus.legacy_migration_status}` : "legacy") : bus.lifecycle_status;
   const inReview = bus.is_legacy ? ["submitted", "under_review"].includes(bus.legacy_migration_status) : ["submitted", "under_review"].includes(bus.lifecycle_status);
@@ -266,21 +279,11 @@ export default async function BusDetailPage({
           <Field label="Engine no." value={bus.engine_number} />
           <Field label="Capacity" value={bus.total_seats} />
         </Card>
-        <Card title="Exterior photograph">
-          {photoUrl(bus.exterior_photo_path) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoUrl(bus.exterior_photo_path)!} alt="Exterior" className="max-h-48 rounded-md" />
-          ) : (
-            <p className="text-text-tertiary">Not provided</p>
-          )}
+        <Card title={`Exterior photographs (${(bus.exterior_photo_keys ?? []).length})`}>
+          <PhotoGrid keys={bus.exterior_photo_keys} alt="Exterior" />
         </Card>
-        <Card title="Interior photograph">
-          {photoUrl(bus.interior_photo_path) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoUrl(bus.interior_photo_path)!} alt="Interior" className="max-h-48 rounded-md" />
-          ) : (
-            <p className="text-text-tertiary">Not provided</p>
-          )}
+        <Card title={`Interior photographs (${(bus.interior_photo_keys ?? []).length})`}>
+          <PhotoGrid keys={bus.interior_photo_keys} alt="Interior" />
         </Card>
       </div>
 
@@ -352,9 +355,6 @@ export default async function BusDetailPage({
 
       <div className="mt-8">
         <SectionHeader title="Route" />
-        {service ? (
-          <>
-            <p className="mb-3 text-sm text-text-secondary">
         {(bus.is_legacy || ["draft", "changes_requested"].includes(bus.lifecycle_status)) && (
           <form action={assignRoute.bind(null, id)} className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-3 text-sm">
             <label className="text-xs">
@@ -381,6 +381,9 @@ export default async function BusDetailPage({
             <p className="w-full text-xs text-text-tertiary">Replaces the bus&apos;s current route and stops. The operator sees it immediately in their app and can still adjust times.</p>
           </form>
         )}
+        {service ? (
+          <>
+            <p className="mb-3 text-sm text-text-secondary">
               {srcCity?.name ?? "?"} → {dstCity?.name ?? "?"} · departs {String(service.default_departure_time).slice(0, 5)} · journey{" "}
               {service.est_duration_min ? `${Math.floor(service.est_duration_min / 60)}h ${service.est_duration_min % 60}m` : "—"}
             </p>

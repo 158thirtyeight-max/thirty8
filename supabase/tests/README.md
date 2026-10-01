@@ -14,6 +14,11 @@ Each phase has a script that runs in a single transaction and rolls back. A fail
 | `onboarding_phase9.sql` | **one fare engine**: search = seat map = hold quote = booking; `fare_changed`; bus gating |
 | `onboarding_phase10.sql` | schedule, trip generation |
 | `onboarding_phase11.sql` | bus submit/approve/activate/suspend workflow, legacy migration path |
+| `onboarding_hardening_phase1.sql` | hold TTL clamp, one booking per hold, one confirmed item per seat |
+| `onboarding_hardening_phase2.sql` | payment confirmation: amount/booking/seat checks, late payment -> pending refund, one captured payment per order |
+| `onboarding_hardening_phase3.sql` | booking window / cutoff / departed-trip enforcement, cancel_booking seat handling, roll_trip_status |
+| `onboarding_hardening_phase4.sql` | operators cannot write routes/points/services/trips/fares directly; set_trip_status; ownership guards |
+| `onboarding_hardening_phase5.sql` | public read lockdown: anon/customer/operator/admin reads, get_trip_points, own-booking visibility |
 | `onboarding_e2e.sql` | legacy regression (existing demo bus) + full new-operator journey through a customer booking |
 
 ## Run

@@ -4,14 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/operator_providers.dart';
 import '../../core/supabase_providers.dart';
-import 'route_form_screen.dart';
 import 'route_points_screen.dart';
 
 final busRoutesProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, operatorId) async {
   final supabase = ref.watch(supabaseProvider);
   return await supabase
       .from('bus_routes')
-      .select('*, source:cities!bus_routes_source_city_id_fkey(name), destination:cities!bus_routes_destination_city_id_fkey(name)')
+      .select('*, source:locations!bus_routes_source_city_id_fkey(name), destination:locations!bus_routes_destination_city_id_fkey(name)')
       .eq('operator_id', operatorId)
       .order('created_at', ascending: false);
 });
@@ -32,7 +31,7 @@ class RoutesListScreen extends ConsumerWidget {
           data: (routes) => routes.isEmpty
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [AppEmptyState(message: 'No routes yet — add your first route.', icon: Icons.alt_route)],
+                  children: const [AppEmptyState(message: 'No routes yet. A route is set up for each bus under Fleet → your bus → Route.', icon: Icons.alt_route)],
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -60,16 +59,6 @@ class RoutesListScreen extends ConsumerWidget {
             onRetry: () => ref.invalidate(busRoutesProvider(context.operatorId)),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final created = await Navigator.of(buildContext).push<bool>(
-            MaterialPageRoute(builder: (_) => RouteFormScreen(operatorId: context.operatorId)),
-          );
-          if (created == true) ref.invalidate(busRoutesProvider(context.operatorId));
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Add route'),
       ),
     );
   }

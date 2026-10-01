@@ -27,6 +27,7 @@ class PendingApprovalScreen extends ConsumerWidget {
     final contextAsync = ref.watch(operatorContextProvider);
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Application status')),
       body: SafeArea(
         child: Center(
           child: Padding(

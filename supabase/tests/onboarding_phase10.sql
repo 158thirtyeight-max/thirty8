@@ -14,9 +14,9 @@ create temp table t_ref (tag text, id uuid);
 grant all on t_ref to authenticated;
 
 insert into public.countries (code, name) values ('ZZ', 'Testland') on conflict (code) do nothing;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'S Src') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'S Src') returning id)
   insert into t_ref select 'SRC', id from c;
-with c as (insert into public.cities (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'S Dst') returning id)
+with c as (insert into public.locations (country_id, name) values ((select id from public.countries where code = 'ZZ'), 'S Dst') returning id)
   insert into t_ref select 'DST', id from c;
 
 -- Stops must be main locations: first = origin, last = destination, middle stops take seeded main locations.
@@ -25,7 +25,7 @@ create or replace function public.t_stops(p_src uuid, p_dst uuid, p jsonb) retur
     s.v || jsonb_build_object('city_id', case
       when s.i = 1 then p_src
       when s.i = jsonb_array_length(p) then p_dst
-      else (select id from public.cities where display_order = s.i)
+      else (select id from public.locations where main_route_order = s.i and is_main_route_enabled)
     end) order by s.i)
   from (select e.ordinality::int as i, e.value as v from jsonb_array_elements(p) with ordinality as e) s
 $f$;

@@ -50,6 +50,8 @@ class StageDocumentsScreen extends ConsumerWidget {
             children: [
               Text('PDF, JPG or PNG, up to 10 MB each. Expiry dates are tracked; an expired document counts as missing.',
                   style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: AppSpacing.xs),
+              const _StatusLegend(),
               const SizedBox(height: AppSpacing.md),
               for (final r in reqs)
                 _DocCard(
@@ -101,31 +103,46 @@ class _DocCard extends ConsumerWidget {
       final expiry = d['expiry_date'] == null ? null : DateTime.parse(d['expiry_date'] as String);
       final state = docExpiryState(expiry);
       final expiryText = switch (state) {
-        DocExpiryState.expired => 'Expired',
+        DocExpiryState.expired => 'Expired — upload a renewed document',
         DocExpiryState.expiringSoon => 'Expiring soon',
         _ => null,
       };
+      final status = d['status'] as String? ?? 'pending';
+      final reason = d['rejection_reason'] as String?;
       return Padding(
         padding: const EdgeInsets.only(top: AppSpacing.sm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(child: Text(d['file_name'] as String? ?? 'Uploaded', overflow: TextOverflow.ellipsis)),
-                AppBadge(status: d['status'] as String),
-              ],
-            ),
+            // Upload state: a row only exists once the file is stored.
+            _StatusLine(icon: Icons.check_circle, color: AppColors.success, title: 'Document uploaded', detail: d['file_name'] as String?),
+            // Verification state: set by an admin, never by the operator.
+            switch (status) {
+              'verified' => const _StatusLine(icon: Icons.verified, color: AppColors.success, title: 'Verified by admin'),
+              'rejected' => _StatusLine(
+                  icon: Icons.cancel,
+                  color: theme.colorScheme.error,
+                  title: 'Rejected by admin',
+                  detail: reason == null ? null : 'Reason: $reason',
+                ),
+              _ => const _StatusLine(
+                  icon: Icons.hourglass_top,
+                  color: AppColors.warning,
+                  title: 'Verification pending',
+                  detail: 'Uploaded successfully. Waiting for an admin to review it.',
+                ),
+            },
             if ((d['doc_number'] as String?) != null) Text('No. ${d['doc_number']}', style: theme.textTheme.bodySmall),
             if (d['issue_date'] != null || d['expiry_date'] != null)
               Text('${d['issue_date'] ?? '—'} → ${d['expiry_date'] ?? '—'}', style: theme.textTheme.bodySmall),
             if (expiryText != null)
               Text(expiryText, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
-            if (d['status'] == 'rejected' && d['rejection_reason'] != null)
-              Text('Rejected: ${d['rejection_reason']}', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
             Align(
               alignment: Alignment.centerLeft,
-              child: TextButton(onPressed: () => _open(context, ref, d), child: const Text('Renew / edit')),
+              child: TextButton(
+                onPressed: () => _open(context, ref, d),
+                child: Text(status == 'rejected' ? 'Upload corrected document' : 'Renew / edit'),
+              ),
             ),
           ],
         ),
@@ -141,7 +158,11 @@ class _DocCard extends ConsumerWidget {
             Text(required ? '$label *' : '$label (optional)', style: theme.textTheme.titleSmall),
             if (docs.isEmpty) ...[
               const SizedBox(height: AppSpacing.xs),
-              const Text('Not uploaded'),
+              Row(children: [
+                Icon(Icons.radio_button_unchecked, size: 16, color: theme.hintColor),
+                const SizedBox(width: 6),
+                const Text('Not uploaded yet'),
+              ]),
             ],
             for (final d in docs) row(d),
             if (docs.isEmpty || multiple)
@@ -238,7 +259,14 @@ class _DocSheetState extends ConsumerState<_DocSheet> {
           );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      final msg = e.toString();
+      if (mounted) {
+        setState(() => _error = msg.contains('duplicate') || msg.contains('unique')
+            ? 'A document of this type already exists. Close this and use “Renew / edit” on it.'
+            : msg.contains('does not belong')
+                ? 'This file could not be matched to the bus. Please try again.'
+                : msg.replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -247,7 +275,10 @@ class _DocSheetState extends ConsumerState<_DocSheet> {
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('dd MMM yyyy');
-    return Padding(
+    // Keep the sheet open until the file is uploaded and its record is saved.
+    return PopScope(
+      canPop: !_saving,
+      child: Padding(
       padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg),
       child: SingleChildScrollView(
         child: Column(
@@ -287,11 +318,78 @@ class _DocSheetState extends ConsumerState<_DocSheet> {
               Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
             const SizedBox(height: AppSpacing.md),
-            AppButton(label: 'Save', expand: true, loading: _saving, onPressed: _saving ? null : _save),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                _saving
+                    ? 'Uploading… please keep this open until it finishes.'
+                    : 'After uploading, an admin reviews the document. It shows “Verification pending” until then.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            AppButton(label: 'Upload & save', expand: true, loading: _saving, onPressed: _saving ? null : _save),
             AppButton(label: 'Cancel', variant: AppButtonVariant.ghost, expand: true, onPressed: _saving ? null : () => Navigator.of(context).pop(false)),
           ],
         ),
       ),
+    ));
+  }
+}
+
+/// One status row: icon + title, optional detail underneath.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.icon, required this.color, required this.title, this.detail});
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.bodyMedium?.copyWith(color: color, fontWeight: FontWeight.w600)),
+                if (detail != null) Text(detail!, style: theme.textTheme.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Explains the two separate states every document goes through.
+class _StatusLegend extends StatelessWidget {
+  const _StatusLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget item(IconData icon, Color color, String text) => Row(children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+        ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        item(Icons.check_circle, AppColors.success, 'Uploaded — your file is stored securely.'),
+        item(Icons.hourglass_top, AppColors.warning, 'Pending — waiting for admin review. This is normal after every upload.'),
+        item(Icons.verified, AppColors.success, 'Verified — approved by an admin.'),
+        item(Icons.cancel, theme.colorScheme.error, 'Rejected — see the reason and upload a corrected file.'),
+      ],
     );
   }
 }

@@ -7,17 +7,18 @@ import '../../core/supabase_providers.dart';
 import '../booking/seat_selection_screen.dart';
 
 class BusDetailsScreen extends ConsumerStatefulWidget {
-  const BusDetailsScreen({super.key, required this.trip, this.sourceCityId, this.destinationCityId, this.pickupPointId, this.dropPointId});
+  const BusDetailsScreen({super.key, required this.trip, this.sourceCityId, this.destinationCityId, this.pickupLocationId, this.dropLocationId});
 
   /// The trip map as returned by the search_trips RPC's `direct` array.
   final Map<String, dynamic> trip;
 
-  /// The journey the customer searched, and any exact master pickup / drop point
-  /// they chose: only stops of those locations are offered, and the chosen points are preselected.
+  /// The journey the customer searched (main-route location ids) and any exact pickup / drop
+  /// location they chose. Only the bus's stops between the searched ends are offered, and the
+  /// chosen locations are preselected.
   final String? sourceCityId;
   final String? destinationCityId;
-  final String? pickupPointId;
-  final String? dropPointId;
+  final String? pickupLocationId;
+  final String? dropLocationId;
 
   @override
   ConsumerState<BusDetailsScreen> createState() => _BusDetailsScreenState();
@@ -38,31 +39,37 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
 
   Future<void> _loadPoints() async {
     final supabase = ref.read(supabaseProvider);
-    final trip = await supabase.from('bus_trips').select('route_id').eq('id', widget.trip['trip_id'] as String).single();
-    final routeId = trip['route_id'] as String;
-
-    final boarding = await supabase.from('boarding_points').select().eq('route_id', routeId).eq('is_active', true).order('sequence_no');
-    final dropping = await supabase.from('dropping_points').select().eq('route_id', routeId).eq('is_active', true).order('sequence_no');
+    // Stops come from an RPC: the trip and stop tables are not readable directly. The RPC
+    // returns null once the trip is closed to booking.
+    final res = await supabase.rpc('get_trip_points', params: {'p_trip_id': widget.trip['trip_id'] as String});
+    final points = res as Map<String, dynamic>?;
+    final boarding = (points?['boarding'] as List?) ?? const [];
+    final dropping = (points?['dropping'] as List?) ?? const [];
 
     if (!mounted) return;
-    // Offer only the stops in the searched locations (stops without a location are older routes: keep them).
-    List<Map<String, dynamic>> inLocation(List raw, String? cityId) {
-      final all = List<Map<String, dynamic>>.from(raw);
-      if (cityId == null) return all;
-      final match = all.where((p) => p['city_id'] == null || p['city_id'] == cityId).toList();
-      return match.isEmpty ? all : match;
+    // Stops are locations. Offer pickups from the searched origin up to (not including) the searched
+    // destination, and drops after the origin up to the destination.
+    var boardingList = List<Map<String, dynamic>>.from(boarding);
+    var droppingList = List<Map<String, dynamic>>.from(dropping);
+    final src = boardingList.where((p) => p['city_id'] == widget.sourceCityId).toList();
+    final dst = droppingList.where((p) => p['city_id'] == widget.destinationCityId).toList();
+    if (src.isNotEmpty && dst.isNotEmpty) {
+      final from = src.first['sequence_no'] as int;
+      final to = dst.last['sequence_no'] as int;
+      boardingList = boardingList.where((p) => (p['sequence_no'] as int) >= from && (p['sequence_no'] as int) < to).toList();
+      droppingList = droppingList.where((p) => (p['sequence_no'] as int) > from && (p['sequence_no'] as int) <= to).toList();
     }
 
     setState(() {
-      _boardingPoints = inLocation(boarding as List, widget.sourceCityId);
-      _droppingPoints = inLocation(dropping as List, widget.destinationCityId);
+      _boardingPoints = boardingList;
+      _droppingPoints = droppingList;
       _selectedBoarding = _boardingPoints.isEmpty
           ? null
-          : _boardingPoints.firstWhere((p) => widget.pickupPointId != null && p['master_point_id'] == widget.pickupPointId, orElse: () => _boardingPoints.first);
+          : _boardingPoints.firstWhere((p) => widget.pickupLocationId != null && p['city_id'] == widget.pickupLocationId, orElse: () => _boardingPoints.first);
       final valid = _validDropping;
       _selectedDropping = valid.isEmpty
           ? null
-          : valid.firstWhere((p) => widget.dropPointId != null && p['master_point_id'] == widget.dropPointId, orElse: () => valid.first);
+          : valid.firstWhere((p) => widget.dropLocationId != null && p['city_id'] == widget.dropLocationId, orElse: () => valid.last);
       _loading = false;
     });
   }

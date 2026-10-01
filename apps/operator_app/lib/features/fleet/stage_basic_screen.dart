@@ -6,10 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/supabase_providers.dart';
+import '../../shared/registration_input_formatter.dart';
+import 'bus_catalog.dart';
+import 'bus_photo_service.dart';
 import 'bus_validators.dart';
 import 'fleet_providers.dart';
-
-const _busPhotosBucket = 'bus-photos';
 
 /// Stage A — basic bus information. Creating goes through the create_bus RPC
 /// (approved operators only, enforced server-side); editing updates the row
@@ -39,14 +40,21 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
   late final TextEditingController _engine;
   bool _ac = true;
   String _seating = 'seater';
-  String? _exteriorPath;
-  String? _interiorPath;
-  String? _pickedExterior;
-  String? _pickedInterior;
+  /// Selected catalog entry, or [customOption] when typing a custom value.
+  String? _mfrChoice;
+  String? _modelChoice;
+
+  /// Photo object keys already stored in R2, and newly picked local files.
+  final _savedKeys = {'exterior': <String>[], 'interior': <String>[]};
+  final _picked = {'exterior': <String>[], 'interior': <String>[]};
+  String? _photoError;
   bool _saving = false;
   String? _error;
 
   bool get _isNew => widget.bus == null;
+
+  String get _manufacturerValue => _mfrChoice == customOption ? _manufacturer.text : (_mfrChoice ?? '');
+  String get _modelValue => _modelChoice == customOption ? _model.text : (_modelChoice ?? '');
 
   /// Core vehicle details are locked once a bus is in review/approved.
   bool get _locked {
@@ -76,8 +84,14 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
       _ac = p.ac;
       _seating = p.seating;
     }
-    _exteriorPath = b['exterior_photo_path'] as String?;
-    _interiorPath = b['interior_photo_path'] as String?;
+    _savedKeys['exterior']!.addAll(((b['exterior_photo_keys'] as List?) ?? const []).cast<String>());
+    _savedKeys['interior']!.addAll(((b['interior_photo_keys'] as List?) ?? const []).cast<String>());
+    final mfr = _manufacturer.text.trim();
+    if (mfr.isNotEmpty) {
+      _mfrChoice = busCatalog.containsKey(mfr) ? mfr : customOption;
+      final mdl = _model.text.trim();
+      if (mdl.isNotEmpty) _modelChoice = modelsFor(mfr).contains(mdl) ? mdl : customOption;
+    }
   }
 
   @override
@@ -88,21 +102,33 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
     super.dispose();
   }
 
-  Future<void> _pick(bool exterior) async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 1600);
-    if (picked == null) return;
-    setState(() => exterior ? _pickedExterior = picked.path : _pickedInterior = picked.path);
+  int _count(String side) => _savedKeys[side]!.length + _picked[side]!.length;
+
+  Future<void> _pick(String side) async {
+    final room = BusPhotoService.maxPerSide - _count(side);
+    if (room <= 0) return;
+    final picked = await ImagePicker().pickMultiImage(imageQuality: 80, maxWidth: 1600, limit: room >= 2 ? room : null);
+    if (picked.isEmpty) return;
+    setState(() {
+      _picked[side]!.addAll(picked.take(room).map((x) => x.path));
+      _photoError = null;
+    });
   }
 
-  Future<String> _upload(String busId, String kind, String localPath) async {
-    final ext = localPath.split('.').last.toLowerCase();
-    final path = '${widget.operatorId}/$busId/${kind}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await ref.read(supabaseProvider).storage.from(_busPhotosBucket).upload(path, File(localPath));
-    return path;
+  String? _validatePhotos() {
+    for (final side in const ['exterior', 'interior']) {
+      if (_count(side) < BusPhotoService.minPerSide) {
+        return 'Add at least ${BusPhotoService.minPerSide} $side photos (up to ${BusPhotoService.maxPerSide}).';
+      }
+    }
+    return null;
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    final formOk = _formKey.currentState!.validate();
+    final photoError = _validatePhotos();
+    setState(() => _photoError = photoError);
+    if (!formOk || photoError != null) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -121,8 +147,8 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
           'p_registration_number': reg,
           'p_bus_type': busType,
           'p_total_seats': int.parse(_seats.text.trim()),
-          'p_manufacturer': nn(_manufacturer.text),
-          'p_model': nn(_model.text),
+          'p_manufacturer': nn(_manufacturerValue),
+          'p_model': nn(_modelValue),
           'p_manufacturing_year': int.tryParse(_mfgYear.text.trim()),
           'p_registration_year': int.tryParse(_regYear.text.trim()),
           'p_chassis_number': nn(_chassis.text),
@@ -147,10 +173,19 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
         }
       }
 
-      final photoPatch = <String, dynamic>{};
-      if (_pickedExterior != null) photoPatch['exterior_photo_path'] = await _upload(busId, 'exterior', _pickedExterior!);
-      if (_pickedInterior != null) photoPatch['interior_photo_path'] = await _upload(busId, 'interior', _pickedInterior!);
-      if (photoPatch.isNotEmpty) await db.from('buses').update(photoPatch).eq('id', busId);
+      final photos = BusPhotoService(db);
+      final keys = <String, List<String>>{};
+      for (final side in const ['exterior', 'interior']) {
+        final uploaded = <String>[];
+        for (final path in List.of(_picked[side]!)) {
+          uploaded.add(await photos.upload(busId: busId, side: side, localPath: path));
+        }
+        keys[side] = [..._savedKeys[side]!, ...uploaded];
+      }
+      await db.from('buses').update({
+        'exterior_photo_keys': keys['exterior'],
+        'interior_photo_keys': keys['interior'],
+      }).eq('id', busId);
 
       ref.invalidate(busesProvider(widget.operatorId));
       ref.invalidate(busProvider(busId));
@@ -167,37 +202,62 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
     }
   }
 
-  Widget _photoTile(String label, String? savedPath, String? picked, VoidCallback onPick) {
-    final db = ref.read(supabaseProvider);
-    Widget preview;
-    if (picked != null) {
-      preview = Image.file(File(picked), fit: BoxFit.cover);
-    } else if (savedPath != null) {
-      preview = Image.network(db.storage.from(_busPhotosBucket).getPublicUrl(savedPath), fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined));
-    } else {
-      preview = const Icon(Icons.add_a_photo_outlined);
-    }
-    return Expanded(
-      child: Column(
-        children: [
-          AspectRatio(
-            aspectRatio: 4 / 3,
-            child: InkWell(
-              onTap: _saving ? null : onPick,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Center(child: preview)),
+  Widget _thumb(Widget image, VoidCallback onRemove) => SizedBox(
+        width: 96,
+        height: 72,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRRect(borderRadius: BorderRadius.circular(8), child: image),
+            Positioned(
+              top: 2,
+              right: 2,
+              child: InkWell(
+                onTap: _saving ? null : onRemove,
+                child: const CircleAvatar(radius: 10, backgroundColor: Colors.black54, child: Icon(Icons.close, size: 14, color: Colors.white)),
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
+          ],
+        ),
+      );
+
+  Widget _photoSection(String side, String title) {
+    final saved = _savedKeys[side]!;
+    final picked = _picked[side]!;
+    final count = saved.length + picked.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('$title photos ($count of ${BusPhotoService.maxPerSide}, min ${BusPhotoService.minPerSide})',
+            style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            for (final key in saved)
+              _thumb(
+                Image.network(BusPhotoService.publicUrl(key), fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined)),
+                () => setState(() => saved.remove(key)),
+              ),
+            for (final path in picked) _thumb(Image.file(File(path), fit: BoxFit.cover), () => setState(() => picked.remove(path))),
+            if (count < BusPhotoService.maxPerSide)
+              InkWell(
+                onTap: _saving ? null : () => _pick(side),
+                child: Container(
+                  width: 96,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.add_a_photo_outlined),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -232,15 +292,63 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
                   controller: _reg,
                   label: 'Registration number',
                   enabled: !locked,
+                  hint: 'KA 01 AB 1234',
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: const [RegistrationInputFormatter()],
+                  helperText: 'Format: state code, RTO number, series, vehicle number (AA 00 AA 0000)',
                   validator: BusValidators.registrationNumber,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                AppTextField(controller: _manufacturer, label: 'Manufacturer', enabled: !locked, textCapitalization: TextCapitalization.words,
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Manufacturer is required' : null),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('mfr-$_mfrChoice'),
+                  initialValue: _mfrChoice,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Manufacturer'),
+                  items: [for (final m in [...manufacturerNames, customOption]) DropdownMenuItem(value: m, child: Text(m))],
+                  onChanged: locked
+                      ? null
+                      : (v) => setState(() {
+                            if (v != _mfrChoice) {
+                              _modelChoice = null;
+                              _model.clear();
+                            }
+                            _mfrChoice = v;
+                          }),
+                  validator: (v) => v == null ? 'Select a manufacturer' : null,
+                ),
+                if (_mfrChoice == customOption) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _manufacturer,
+                    label: 'Manufacturer name',
+                    enabled: !locked,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter the manufacturer name' : null,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
-                AppTextField(controller: _model, label: 'Model', enabled: !locked, textCapitalization: TextCapitalization.words,
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Model is required' : null),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('model-$_mfrChoice-$_modelChoice'),
+                  initialValue: _modelChoice,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: 'Model', helperText: _mfrChoice == null ? 'Select a manufacturer first' : null),
+                  items: [
+                    for (final m in [if (_mfrChoice != null && _mfrChoice != customOption) ...modelsFor(_mfrChoice!), customOption])
+                      DropdownMenuItem(value: m, child: Text(m)),
+                  ],
+                  onChanged: (locked || _mfrChoice == null) ? null : (v) => setState(() => _modelChoice = v),
+                  validator: (v) => v == null ? 'Select a model' : null,
+                ),
+                if (_modelChoice == customOption) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _model,
+                    label: 'Model name',
+                    enabled: !locked,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter the model name' : null,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 Row(
                   children: [
@@ -304,13 +412,13 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 Text('Photographs', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    _photoTile('Exterior', _exteriorPath, _pickedExterior, () => _pick(true)),
-                    const SizedBox(width: AppSpacing.md),
-                    _photoTile('Interior', _interiorPath, _pickedInterior, () => _pick(false)),
-                  ],
-                ),
+                _photoSection('exterior', 'Exterior'),
+                const SizedBox(height: AppSpacing.md),
+                _photoSection('interior', 'Interior'),
+                if (_photoError != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(_photoError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

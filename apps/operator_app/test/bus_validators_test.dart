@@ -1,22 +1,41 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_app/features/fleet/bus_validators.dart';
+import 'package:operator_app/shared/registration_input_formatter.dart';
 
 void main() {
   group('registration number', () {
-    test('accepts common formats', () {
+    test('accepts the standard AA 00 AA 0000 format', () {
       expect(BusValidators.registrationNumber('AN01A1234'), isNull);
-      expect(BusValidators.registrationNumber('an 01-a 1234'), isNull);
-      expect(BusValidators.registrationNumber('22BH1234AA'), isNull);
+      expect(BusValidators.registrationNumber('ka 01-ab 1234'), isNull);
+      expect(BusValidators.registrationNumber('MH 12 ABC 1234'), isNull);
     });
-    test('rejects bad values', () {
+    test('rejects invalid values', () {
       expect(BusValidators.registrationNumber(''), isNotNull);
       expect(BusValidators.registrationNumber('AB12'), isNotNull);
-      expect(BusValidators.registrationNumber('ABCDEFGH'), isNotNull); // no digit
-      expect(BusValidators.registrationNumber('12345678'), isNotNull); // no letter
+      expect(BusValidators.registrationNumber('ABCDEFGH'), isNotNull);
+      expect(BusValidators.registrationNumber('12345678'), isNotNull);
       expect(BusValidators.registrationNumber('AN01A1234@'), isNotNull);
+      expect(BusValidators.registrationNumber('XX 01 AB 1234'), isNotNull); // unknown state
+      expect(BusValidators.registrationNumber('KA 00 AB 1234'), isNotNull);
+      expect(BusValidators.registrationNumber('KA 01 AB 0000'), isNotNull);
+      expect(BusValidators.registrationNumber('KA 01 1234'), isNotNull); // no series
     });
     test('normalizes', () {
       expect(BusValidators.normalizeRegistration(' an-01 a1234'), 'AN01A1234');
+    });
+    test('formatter inserts spaces while typing', () {
+      const f = RegistrationInputFormatter();
+      String type(String s) {
+        var v = TextEditingValue.empty;
+        for (final ch in s.split('')) {
+          v = f.formatEditUpdate(v, TextEditingValue(text: v.text + ch));
+        }
+        return v.text;
+      }
+
+      expect(type('ka01ab1234'), 'KA 01 AB 1234');
+      expect(type('mh12a5'), 'MH 12 A 5');
+      expect(type('1KA01AB12345'), 'KA 01 AB 1234'); // stray leading digit / extra digit dropped
     });
   });
 

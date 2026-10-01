@@ -90,10 +90,23 @@ class FleetRepository {
       'file_name': ?fileName,
     };
 
-    if (existing == null) {
-      await _db.from('bus_documents').insert({'bus_id': busId, 'doc_type': docType, ...data});
-    } else {
-      await _db.from('bus_documents').update(data).eq('id', existing['id'] as String);
+    try {
+      if (existing == null) {
+        await _db.from('bus_documents').insert({'bus_id': busId, 'doc_type': docType, ...data});
+      } else {
+        await _db.from('bus_documents').update(data).eq('id', existing['id'] as String);
+      }
+    } catch (_) {
+      // The file is stored but its record was not: remove it so nothing is left orphaned.
+      if (storagePath != null) {
+        try {
+          await _db.storage.from('bus-documents').remove([storagePath]);
+        } catch (_) {}
+      }
+      rethrow;
+    }
+
+    if (existing != null) {
       if (storagePath != null && existing['bucket'] == 'bus-documents') {
         try {
           await _db.storage.from('bus-documents').remove([existing['file_path'] as String]);
@@ -105,12 +118,36 @@ class FleetRepository {
 
 final fleetRepositoryProvider = Provider<FleetRepository>((ref) => FleetRepository(ref.watch(supabaseProvider)));
 
-/// Active main locations (admin-managed, in display order) for origin / destination / stop pickers.
+/// Main-route locations (admin-managed, in main-route order): origin and destination pickers.
 final citiesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final rows = await ref
       .watch(supabaseProvider)
-      .from('main_locations')
-      .select('id, name, state')
+      .from('locations')
+      .select('id, name, state, location_code')
+      .eq('is_active', true)
+      .eq('is_main_route_enabled', true)
+      .order('main_route_order');
+  return List<Map<String, dynamic>>.from(rows);
+});
+
+/// Every active location (one master list) with its pickup / drop flags, for intermediate stops. Read-only.
+final stopLocationsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final rows = await ref
+      .watch(supabaseProvider)
+      .from('locations')
+      .select('id, name, location_code, is_main_route_enabled, is_pickup_enabled, is_drop_enabled')
+      .eq('is_active', true)
+      .order('pickup_order')
+      .order('name');
+  return List<Map<String, dynamic>>.from(rows);
+});
+
+/// Admin-managed route catalog (active routes with their ordered stops).
+final routeCatalogProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final rows = await ref
+      .watch(supabaseProvider)
+      .from('route_templates')
+      .select('*, stops:route_template_stops(*)')
       .eq('is_active', true)
       .order('name');
   return List<Map<String, dynamic>>.from(rows);
@@ -125,29 +162,6 @@ final busRouteProvider = FutureProvider.autoDispose.family<Map<String, dynamic>,
       .eq('bus_id', busId)
       .order('created_at')
       .limit(1)
-      .order('display_order');
-  return List<Map<String, dynamic>>.from(rows);
-});
-
-/// Active master pickup / drop points of every main location. Read-only for operators.
-final locationPointsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final rows = await ref
-      .watch(supabaseProvider)
-      .from('pickup_drop_points')
-      .select('id, main_location_id, name, landmark, is_pickup_allowed, is_drop_allowed')
-      .eq('is_active', true)
-      .order('display_order')
-      .order('name');
-  return List<Map<String, dynamic>>.from(rows);
-});
-
-/// Admin-managed route catalog (active routes with their ordered stops).
-final routeCatalogProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final rows = await ref
-      .watch(supabaseProvider)
-      .from('route_templates')
-      .select('*, stops:route_template_stops(*)')
-      .eq('is_active', true)
       .maybeSingle();
   if (service == null) return {'service': null, 'route': null, 'boarding': <Map<String, dynamic>>[], 'dropping': <Map<String, dynamic>>[]};
   final routeId = service['route_id'] as String;

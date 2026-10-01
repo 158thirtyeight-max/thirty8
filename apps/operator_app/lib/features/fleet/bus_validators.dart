@@ -2,19 +2,27 @@
 class BusValidators {
   BusValidators._();
 
-  static final _regRe = RegExp(r'^[A-Z0-9]{6,13}$');
+  /// Standard Indian format: state/UT code (2 letters) + RTO code (2 digits)
+  /// + series (1-3 letters) + number (4 digits), e.g. KA 01 AB 1234.
+  static final _regRe = RegExp(r'^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{4})$');
+
+  /// State and union-territory codes issued under the Motor Vehicles Act
+  /// (includes the pre-2019 codes still in use: DD, DN, OD/OR, UK/UA, TS/TG).
+  static const stateCodes = {
+    'AN', 'AP', 'AR', 'AS', 'BR', 'CG', 'CH', 'DD', 'DL', 'DN', 'GA', 'GJ', 'HP', 'HR', 'JH', 'JK', 'KA', 'KL',
+    'LA', 'LD', 'MH', 'ML', 'MN', 'MP', 'MZ', 'NL', 'OD', 'OR', 'PB', 'PY', 'RJ', 'SK', 'TG', 'TN', 'TR', 'TS',
+    'UA', 'UK', 'UP', 'WB',
+  };
 
   static String normalizeRegistration(String v) => v.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
 
-  /// Indian registrations look like AN01A1234 / KA01AB1234 / 22BH1234AA. We
-  /// don't try to encode every state format; we require 6-13 letters/digits
-  /// with at least one letter and one digit.
   static String? registrationNumber(String? v) {
     if (v == null || v.trim().isEmpty) return 'Registration number is required';
-    final n = normalizeRegistration(v);
-    if (!_regRe.hasMatch(n) || !n.contains(RegExp(r'[A-Z]')) || !n.contains(RegExp(r'[0-9]'))) {
-      return 'Enter a valid registration number (e.g. AN01A1234)';
-    }
+    final m = _regRe.firstMatch(normalizeRegistration(v));
+    if (m == null) return 'Enter a valid registration number in the format AA 00 AA 0000';
+    if (!stateCodes.contains(m.group(1))) return '"${m.group(1)}" is not a valid Indian state/UT code';
+    if (m.group(2) == '00') return 'RTO code cannot be 00';
+    if (m.group(4) == '0000') return 'Vehicle number cannot be 0000';
     return null;
   }
 

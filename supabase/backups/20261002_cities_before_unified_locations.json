@@ -1,0 +1,16 @@
+{
+  "note": "Export of public.cities taken before 20261002000500_unified_locations.sql (project xdrthrdwdfzhzhqkhnnf). pickup_drop_points, route_templates, bus_routes were empty at the time.",
+  "cities": [
+    {"id": "5aa7ee14-8e8d-4ecc-a54f-fdc7263edda8", "name": "SRI VIJAYA PURAM", "slug": "sri-vijaya-puram", "latitude": 11.6234, "longitude": 92.7265, "is_active": true, "display_order": 1},
+    {"id": "3765caea-3c72-4a93-8c15-53fd4f8b42c8", "name": "BARATANG", "slug": "baratang", "latitude": 12.1667, "longitude": 92.7667, "is_active": true, "display_order": 3},
+    {"id": "131c07cc-dbb3-45fd-a018-b9bed4c75480", "name": "MIDDLE STRAIT", "slug": "middle-strait", "latitude": null, "longitude": null, "is_active": true, "display_order": 4},
+    {"id": "53a37d0d-6419-4ee6-9e72-408a573df25d", "name": "KADAMTALA", "slug": "kadamtala", "latitude": 12.35, "longitude": 92.7833, "is_active": true, "display_order": 5},
+    {"id": "a1f20a69-6584-4c29-84ac-b0d351b60896", "name": "RANGAT", "slug": "rangat", "latitude": 12.5333, "longitude": 92.8833, "is_active": true, "display_order": 6},
+    {"id": "9f2653e2-49bb-494b-b664-fec480a1af46", "name": "NIMBUDERA", "slug": "nimbudera", "latitude": null, "longitude": null, "is_active": true, "display_order": 7},
+    {"id": "76cf704f-32b5-41e7-aaef-108a44a32879", "name": "MAYABUNDER", "slug": "mayabunder", "latitude": 12.8833, "longitude": 92.8167, "is_active": true, "display_order": 8},
+    {"id": "a2cfa28c-670b-4fe8-a889-00d68e6fa24b", "name": "DIGLIPUR", "slug": "diglipur", "latitude": 13.26, "longitude": 93.0, "is_active": true, "display_order": 9},
+    {"id": "37e16f41-ef6f-4005-bb67-87e69c4c8d45", "name": "AERIAL BAY- DIGLIPUR", "slug": "aerial-bay-diglipur", "latitude": null, "longitude": null, "is_active": true, "display_order": 10},
+    {"id": "571c6d9a-f968-4deb-8f85-38cc00df4c30", "name": "BAMBOOFLAT", "slug": "bambooflat", "latitude": null, "longitude": null, "is_active": false, "display_order": 2}
+  ],
+  "referenced_by": {"cargo_hub": ["DIGLIPUR", "SRI VIJAYA PURAM"], "cargo_routes": ["SRI VIJAYA PURAM -> DIGLIPUR"]}
+}

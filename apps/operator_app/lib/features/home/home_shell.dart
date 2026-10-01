@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/operator_providers.dart';
@@ -51,6 +52,10 @@ class _HomeShellState extends State<HomeShell> {
     final safeIndex = _index >= tabs.length ? 0 : _index;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const AppLogoLockup(variant: AppLogoVariant.plus, markSize: 24),
+        centerTitle: false,
+      ),
       body: IndexedStack(index: safeIndex, children: tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: safeIndex,

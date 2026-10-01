@@ -1,6 +1,6 @@
 {
-    "name": "customer_app",
-    "short_name": "customer_app",
+    "name": "Thirty8",
+    "short_name": "Thirty8",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

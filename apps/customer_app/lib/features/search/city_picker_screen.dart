@@ -84,7 +84,6 @@ class _CityPickerScreenState extends ConsumerState<CityPickerScreen> {
                 return AppListItem(
                   leading: const Icon(Icons.location_on_outlined),
                   title: city.name,
-                  subtitle: city.state,
                   onTap: () => Navigator.of(context).pop(city),
                 );
               },

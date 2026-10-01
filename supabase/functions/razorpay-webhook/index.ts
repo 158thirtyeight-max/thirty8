@@ -5,8 +5,9 @@ import { serviceRoleClient } from "../_shared/supabase.ts";
 // Razorpay webhook — the SOURCE OF TRUTH for payment/refund state. Deployed
 // with verify_jwt=false (Razorpay's request carries no Supabase JWT; it
 // authenticates itself via the x-razorpay-signature header instead).
-// Idempotent: every event is recorded in processed_webhook_events before
-// being acted on, so a retried delivery is a safe no-op.
+// Idempotent: an event is recorded in processed_webhook_events once its handler has
+// succeeded; a failed handler returns 500 so Razorpay redelivers it, and the database
+// functions it calls are idempotent, so redelivery is safe.
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -28,7 +29,12 @@ Deno.serve(async (req) => {
     return new Response("Invalid signature", { status: 400 });
   }
 
-  const event = JSON.parse(rawBody);
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return new Response("Invalid JSON", { status: 400 });
+  }
   const paymentEntity = event?.payload?.payment?.entity;
   const refundEntity = event?.payload?.refund?.entity;
   const eventId: string = event.id ?? `${event.event}:${paymentEntity?.id ?? refundEntity?.id ?? crypto.randomUUID()}`;
@@ -43,38 +49,46 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200 });
   }
 
+  // An event is recorded as processed ONLY after its handler succeeded. If a handler
+  // fails, we answer 500 and do not record the event, so Razorpay redelivers it.
+  // The database functions are idempotent, so a redelivery (or a concurrent
+  // duplicate delivery) is safe. Events that cannot be matched to an order are
+  // logged and acknowledged: retrying them can never succeed.
   try {
     switch (event.event) {
       case "payment.captured": {
         const { data: order } = await admin
           .from("orders")
           .select("order_reference")
-          .eq("razorpay_order_id", paymentEntity.order_id)
-          .single();
+          .eq("razorpay_order_id", paymentEntity?.order_id)
+          .maybeSingle();
         if (!order) {
-          console.error("No matching order for razorpay_order_id", paymentEntity.order_id);
+          console.error("No matching order for razorpay_order_id", paymentEntity?.order_id);
           break;
         }
-        const { error } = await admin.rpc("confirm_booking_after_payment", {
+        const { data: result, error } = await admin.rpc("confirm_booking_after_payment", {
           p_order_reference: order.order_reference,
           p_payment_id: paymentEntity.id,
           p_amount_cents: paymentEntity.amount,
         });
-        if (error) console.error("confirm_booking_after_payment failed", error);
+        if (error) throw new Error(`confirm_booking_after_payment failed: ${error.message}`);
+        if (result?.status === "refund_pending") {
+          console.warn("Payment captured but not applied; refund queued", order.order_reference, result.reason);
+        }
         break;
       }
       case "payment.failed": {
         const { data: order } = await admin
           .from("orders")
           .select("order_reference")
-          .eq("razorpay_order_id", paymentEntity.order_id)
-          .single();
+          .eq("razorpay_order_id", paymentEntity?.order_id)
+          .maybeSingle();
         if (!order) {
-          console.error("No matching order for razorpay_order_id", paymentEntity.order_id);
+          console.error("No matching order for razorpay_order_id", paymentEntity?.order_id);
           break;
         }
         const { error } = await admin.rpc("handle_payment_failure", { p_order_reference: order.order_reference });
-        if (error) console.error("handle_payment_failure failed", error);
+        if (error) throw new Error(`handle_payment_failure failed: ${error.message}`);
         break;
       }
       case "refund.processed": {
@@ -82,7 +96,7 @@ Deno.serve(async (req) => {
           p_razorpay_refund_id: refundEntity.id,
           p_payment_id: refundEntity.payment_id,
         });
-        if (error) console.error("confirm_refund failed", error);
+        if (error) throw new Error(`confirm_refund failed: ${error.message}`);
         break;
       }
       default:
@@ -91,12 +105,17 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error("Webhook processing error", err);
-    // Still record the event as processed below: retrying a handler error
-    // via Razorpay's own retry schedule won't fix an application bug, and
-    // we don't want infinite redelivery. Failures are visible in function logs.
+    return new Response("Processing failed", { status: 500 });
   }
 
-  await admin.from("processed_webhook_events").insert({ event_id: eventId, event_type: event.event });
+  const { error: recordError } = await admin
+    .from("processed_webhook_events")
+    .insert({ event_id: eventId, event_type: event.event });
+  // 23505 = a concurrent delivery of the same event recorded it first; that is fine.
+  if (recordError && recordError.code !== "23505") {
+    console.error("Failed to record processed webhook event", recordError);
+    return new Response("Processing failed", { status: 500 });
+  }
 
   return new Response("OK", { status: 200 });
 });

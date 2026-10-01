@@ -35,7 +35,7 @@ do $$
 declare v_bus uuid := (select id from t_bus where tag = 'A1'); v_doc uuid; v_status text; v_ver int;
 begin
   insert into public.bus_documents (bus_id, doc_type, doc_number, issue_date, expiry_date, file_path, status)
-  values (v_bus, 'insurance', 'POL-1', current_date - 100, current_date + 265, 'x/y/ins.pdf', 'verified')
+  values (v_bus, 'insurance', 'POL-1', current_date - 100, current_date + 265, (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/insurance_1.pdf', 'verified')
   returning id, status into v_doc, v_status;
   if v_status <> 'pending' then raise exception 'FAIL 1a: inserted as %', v_status; end if;
 
@@ -52,14 +52,37 @@ begin
 
   begin
     insert into public.bus_documents (bus_id, doc_type, issue_date, expiry_date, file_path)
-    values (v_bus, 'puc', current_date, current_date - 1, 'x/y/puc.pdf');
+    values (v_bus, 'puc', current_date, current_date - 1, (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/puc_1.pdf');
     raise exception 'FAIL 1d: expiry before issue accepted';
   exception when check_violation then null; end;
 
   begin
-    insert into public.bus_documents (bus_id, doc_type, file_path) values (v_bus, 'insurance', 'x/y/dup.pdf');
+    insert into public.bus_documents (bus_id, doc_type, file_path) values (v_bus, 'insurance', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/insurance_1.pdf');
     raise exception 'FAIL 1e: duplicate insurance row accepted';
   exception when unique_violation then null; end;
+
+  -- the stored file must belong to this operator + bus + document type
+  begin
+    insert into public.bus_documents (bus_id, doc_type, file_path) values (v_bus, 'rc', 'someone-else/other-bus/rc_1.pdf');
+    raise exception 'FAIL 1f: foreign file path accepted';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+    if sqlerrm not like '%does not belong to this bus%' then raise exception 'FAIL 1f: unexpected error %', sqlerrm; end if;
+  end;
+  begin
+    insert into public.bus_documents (bus_id, doc_type, file_path)
+    values (v_bus, 'rc', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/puc_1.pdf');
+    raise exception 'FAIL 1g: file of another document type accepted';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  begin
+    insert into public.bus_documents (bus_id, doc_type, file_path)
+    values (v_bus, 'selfie', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/selfie_1.pdf');
+    raise exception 'FAIL 1h: unknown document type accepted';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
 end $$;
 
 -- ---- 2. other operator cannot see or add documents to A's bus ---------
@@ -71,7 +94,7 @@ begin
   select count(*) into n from public.bus_documents where bus_id = v_bus;
   if n <> 0 then raise exception 'FAIL 2a: operator B can read A bus documents'; end if;
   begin
-    insert into public.bus_documents (bus_id, doc_type, file_path) values (v_bus, 'rc', 'x/y/rc.pdf');
+    insert into public.bus_documents (bus_id, doc_type, file_path) values (v_bus, 'rc', (select operator_id::text from public.buses where id = v_bus) || '/' || v_bus || '/rc_1.pdf');
     raise exception 'FAIL 2b: operator B added a document to A bus';
   exception when others then
     if sqlerrm like 'FAIL%' then raise; end if;

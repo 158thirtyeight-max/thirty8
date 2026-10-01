@@ -1,7 +1,8 @@
 -- =========================================================================
--- Checks for 20261001000500 / 20261001000600: centralised main locations,
--- master pickup / drop points, route validation against them, and
--- point-aware search. Everything is rolled back.
+-- Checks for 20261002000500_unified_locations.sql: ONE canonical locations
+-- table with permanent codes, independent main-route / pickup / drop flags and
+-- orders, admin-only writes, location-based routes and point-aware search.
+-- Everything is rolled back.
 -- =========================================================================
 begin;
 
@@ -16,33 +17,44 @@ grant all on t_ops to authenticated;
 create temp table t_ref (tag text, id uuid);
 grant all on t_ref to authenticated;
 
--- ---- 1. seed: ten approved locations, exactly once, in order -------------
+-- ---- 1. one table, 33 seeded locations with the supplied codes ----------
 do $$
 declare
-  expected text[] := array['SRI VIJAYA PURAM','BAMBOOFLAT','BARATANG','MIDDLE STRAIT','KADAMTALA','RANGAT','NIMBUDERA','MAYABUNDER','DIGLIPUR','AERIAL BAY- DIGLIPUR'];
-  got text[];
   n int;
+  expected text[] := array[
+    'T8SVP001','T8ADA001','T8AMK001','T8BAD001','T8BAK001','T8BAS001','T8BET001','T8BIL001','T8CEO001','T8KAU001','T8KER001',
+    'T8KOR001','T8BAR001','T8JIR001','T8UTT001','T8VSP001','T8RRO001','T8KAD001','T8MID001','T8MOH001','T8RAN001','T8NIM001',
+    'T8NBT001','T8PAN001','T8PAR001','T8PYL001','T8SAB001','T8SIT001','T8KAL001','T8KPH001','T8MAY001','T8DIG001','T8AER001'];
+  got text[];
 begin
-  select array_agg(name order by display_order) into got from public.main_locations where display_order between 1 and 10;
-  if got is distinct from expected then raise exception 'FAIL 1a: seeded locations/order wrong: %', got; end if;
-  select count(*) into n from public.main_locations where display_order between 1 and 10 and is_active;
-  if n <> 10 then raise exception 'FAIL 1b: expected 10 active seeded locations, got %', n; end if;
-  select count(*) - count(distinct slug) into n from public.cities where slug is not null;
-  if n <> 0 then raise exception 'FAIL 1c: duplicate slugs'; end if;
-  select count(*) into n from public.main_locations where upper(name) = 'DIGLIPUR';
-  if n <> 1 then raise exception 'FAIL 1d: DIGLIPUR must exist exactly once, got %', n; end if;
-  -- non-approved legacy locations are not main locations
-  if exists (select 1 from public.main_locations where name in ('Jirkatang', 'Billiground')) then
-    raise exception 'FAIL 1e: legacy locations leaked into main_locations';
+  if to_regclass('public.pickup_drop_points') is not null or to_regclass('public.main_locations') is not null or to_regclass('public.cities') is not null then
+    raise exception 'FAIL 1a: a redundant location master still exists';
   end if;
+  select count(*) into n from public.locations;
+  if n <> 33 then raise exception 'FAIL 1b: expected 33 locations, got %', n; end if;
+  select array_agg(location_code order by pickup_order) into got from public.locations;
+  if got is distinct from expected then raise exception 'FAIL 1c: seeded codes / order wrong: %', got; end if;
+  if (select location_code from public.locations where name = 'DIGLIPUR') <> 'T8DIG001' then raise exception 'FAIL 1d: Diglipur must be T8DIG001'; end if;
+  if (select location_code from public.locations where name = 'AERIAL BAY') <> 'T8AER001' then raise exception 'FAIL 1e: Aerial Bay code'; end if;
+  select count(*) - count(distinct location_code) into n from public.locations;
+  if n <> 0 then raise exception 'FAIL 1f: duplicate codes'; end if;
+  select count(*) - count(distinct normalized_name) into n from public.locations;
+  if n <> 0 then raise exception 'FAIL 1g: duplicate names'; end if;
+  select array_agg(location_code order by main_route_order) into got from public.locations where is_main_route_enabled and is_active;
+  if got is distinct from array['T8SVP001','T8BAR001','T8KAD001','T8MID001','T8RAN001','T8NIM001','T8MAY001','T8DIG001','T8AER001'] then
+    raise exception 'FAIL 1h: main route list wrong: %', got;
+  end if;
+  select count(*) into n from public.locations where is_pickup_enabled and is_drop_enabled and is_active;
+  if n <> 33 then raise exception 'FAIL 1i: pickup/drop flags'; end if;
 end $$;
 
-insert into t_ref select 'SRC', id from public.main_locations where slug = 'sri-vijaya-puram';
-insert into t_ref select 'MID', id from public.main_locations where slug = 'rangat';
-insert into t_ref select 'DST', id from public.main_locations where slug = 'diglipur';
-insert into t_ref select 'OTHER', id from public.main_locations where slug = 'baratang';
+insert into t_ref select 'SRC', id from public.locations where location_code = 'T8SVP001';
+insert into t_ref select 'MID', id from public.locations where location_code = 'T8RAN001';
+insert into t_ref select 'DST', id from public.locations where location_code = 'T8DIG001';
+insert into t_ref select 'PICK', id from public.locations where location_code = 'T8BAK001';   -- bakultala: not a main route location
+insert into t_ref select 'OTHER', id from public.locations where location_code = 'T8ADA001';  -- adazig: not on the route
 
--- ---- 2. security: only admins write master data --------------------------
+-- ---- 2. only admins write ---------------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
 insert into t_ops select 'A', (public.register_operator('Op A', 'Op A Pvt Ltd', 'bus', 'a@test.invalid', '9876543210')).id;
@@ -50,16 +62,12 @@ insert into t_ops select 'A', (public.register_operator('Op A', 'Op A Pvt Ltd', 
 do $$
 begin
   begin
-    insert into public.main_locations (name) values ('OPERATOR PLACE');
-    raise exception 'FAIL 2a: operator inserted a main location';
+    insert into public.locations (name) values ('OPERATOR PLACE');
+    raise exception 'FAIL 2a: operator inserted a location';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-  begin
-    insert into public.pickup_drop_points (main_location_id, name) values ((select id from t_ref where tag = 'SRC'), 'Operator Stand');
-    raise exception 'FAIL 2b: operator inserted a master point';
-  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-  update public.main_locations set is_active = false where slug = 'rangat';
-  if (select is_active from public.main_locations where slug = 'rangat') is not true then
-    raise exception 'FAIL 2c: operator deactivated a main location';
+  update public.locations set is_active = false, is_pickup_enabled = false where location_code = 'T8RAN001';
+  if (select is_active and is_pickup_enabled from public.locations where location_code = 'T8RAN001') is not true then
+    raise exception 'FAIL 2b: operator changed a location';
   end if;
 end $$;
 
@@ -67,77 +75,63 @@ reset role;
 select set_config('request.jwt.claims', '', true);
 update public.operators set status = 'approved', application_status = 'approved';
 
--- ---- 3. admin manages locations and points -------------------------------
+-- ---- 3. admin adds / edits; codes are generated and permanent -----------
 select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-00000000000c","role":"authenticated"}', true);
 set local role authenticated;
 
 do $$
-declare v_id uuid; v_order int;
+declare v_id uuid; v_code text; v_main int; v_pick int; v_drop_before int; v_main_before int;
 begin
-  insert into public.main_locations (name) values ('TEST NEW LOCATION') returning id, display_order into v_id, v_order;
-  if v_order <> 11 then raise exception 'FAIL 3a: new location should get the next display order, got %', v_order; end if;
-  if (select slug from public.main_locations where id = v_id) <> 'test-new-location' then raise exception 'FAIL 3b: slug not generated'; end if;
-  update public.main_locations set display_order = 3, name = 'TEST RENAMED' where id = v_id;
-  if (select display_order from public.main_locations where id = v_id) <> 3 then raise exception 'FAIL 3c: order not editable'; end if;
-  begin
-    insert into public.main_locations (name) values ('Test-New Location');
-    raise exception 'FAIL 3d: duplicate slug accepted';
+  insert into public.locations (name, is_main_route_enabled) values ('Diglipur North', false) returning id, location_code into v_id, v_code;
+  if v_code <> 'T8DIG002' then raise exception 'FAIL 3a: expected T8DIG002, got %', v_code; end if;
+  insert into public.locations (name) values ('Zebra Point') returning location_code into v_code;
+  if v_code <> 'T8ZEB001' then raise exception 'FAIL 3b: expected T8ZEB001, got %', v_code; end if;
+  select main_route_order, pickup_order into v_main, v_pick from public.locations where name = 'Zebra Point';
+  if v_main <= 130 or v_pick <> 35 then raise exception 'FAIL 3c: default orders % / %', v_main, v_pick; end if;
+
+  begin insert into public.locations (name) values ('diglipur'); raise exception 'FAIL 3d: duplicate accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-  update public.main_locations set is_active = false where id = v_id;
+  begin insert into public.locations (name) values ('R-R O'); raise exception 'FAIL 3e: normalised duplicate accepted';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  begin insert into public.locations (name) values ('   '); raise exception 'FAIL 3f: blank name accepted';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+
+  update public.locations set name = 'Diglipur North Terminal', port_name = 'Test Jetty' where id = v_id;
+  if (select location_code from public.locations where id = v_id) <> 'T8DIG002' then raise exception 'FAIL 3g: code changed on rename'; end if;
+  begin update public.locations set location_code = 'T8DIG099' where id = v_id; raise exception 'FAIL 3h: code edited';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  begin delete from public.locations where id = v_id; raise exception 'FAIL 3i: location deleted';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  begin update public.locations set latitude = 11.5 where id = v_id; raise exception 'FAIL 3j: half coordinates accepted';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  update public.locations set latitude = 13.26, longitude = 93.0 where id = v_id;
+
+  -- the three uses are independent: flags and orders
+  select drop_order, main_route_order into v_drop_before, v_main_before from public.locations where id = v_id;
+  update public.locations set is_pickup_enabled = false, pickup_order = 99 where id = v_id;
+  if not (select pickup_order = 99 and not is_pickup_enabled and is_drop_enabled and drop_order = v_drop_before and main_route_order = v_main_before
+          from public.locations where id = v_id) then
+    raise exception 'FAIL 3k: pickup change leaked into drop / main route';
+  end if;
+  update public.locations set is_active = false where id = v_id;
+  if (select is_active from public.locations where id = v_id) then raise exception 'FAIL 3m: disable did not persist'; end if;
 end $$;
 
-with p as (insert into public.pickup_drop_points (main_location_id, name, landmark, display_order)
-           values ((select id from t_ref where tag = 'SRC'), 'Test Bus Stand', 'Near the jetty', 1) returning id)
-  insert into t_ref select 'P_SRC_BUS', id from p;
-with p as (insert into public.pickup_drop_points (main_location_id, name, display_order)
-           values ((select id from t_ref where tag = 'SRC'), 'Test Bazaar', 2) returning id)
-  insert into t_ref select 'P_SRC_BAZAAR', id from p;
-with p as (insert into public.pickup_drop_points (main_location_id, name, is_drop_allowed)
-           values ((select id from t_ref where tag = 'SRC'), 'Pickup Only Corner', false) returning id)
-  insert into t_ref select 'P_SRC_PICKONLY', id from p;
-with p as (insert into public.pickup_drop_points (main_location_id, name, is_pickup_allowed)
-           values ((select id from t_ref where tag = 'MID'), 'Test Mid Market', false) returning id)
-  insert into t_ref select 'P_MID_DROPONLY', id from p;
-with p as (insert into public.pickup_drop_points (main_location_id, name)
-           values ((select id from t_ref where tag = 'DST'), 'Test Dest Stand') returning id)
-  insert into t_ref select 'P_DST', id from p;
-with p as (insert into public.pickup_drop_points (main_location_id, name)
-           values ((select id from t_ref where tag = 'DST'), 'Unserved Dest Point') returning id)
-  insert into t_ref select 'P_DST_UNSERVED', id from p;
-
-do $$
-begin
-  begin
-    insert into public.pickup_drop_points (main_location_id, name) values ((select id from t_ref where tag = 'SRC'), 'TEST bus stand');
-    raise exception 'FAIL 3e: duplicate point name in one location accepted';
-  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-  begin
-    insert into public.pickup_drop_points (main_location_id, name, latitude) values ((select id from t_ref where tag = 'SRC'), 'Half Coords', 11.5);
-    raise exception 'FAIL 3f: latitude without longitude accepted';
-  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-  -- coordinates are optional and can be added later without a schema change
-  update public.pickup_drop_points set latitude = 11.6234, longitude = 92.7265 where id = (select id from t_ref where tag = 'P_SRC_BUS');
-end $$;
-
--- ---- 4. visibility: active only for the public --------------------------
+-- ---- 4. public read ----------------------------------------------------------
 reset role;
 select set_config('request.jwt.claims', '', true);
-update public.pickup_drop_points set is_active = false where id = (select id from t_ref where tag = 'P_DST_UNSERVED');
 set local role anon;
 do $$
 declare n int;
 begin
-  select count(*) into n from public.pickup_drop_points where name = 'Unserved Dest Point';
-  if n <> 0 then raise exception 'FAIL 4a: anon sees an inactive point'; end if;
-  select count(*) into n from public.pickup_drop_points where name = 'Test Bus Stand';
-  if n <> 1 then raise exception 'FAIL 4b: anon cannot see an active point'; end if;
-  select count(*) into n from public.main_locations where display_order <= 10 and is_active;
-  if n <> 10 then raise exception 'FAIL 4c: anon cannot read main locations'; end if;
+  select count(*) into n from public.locations where is_active and is_main_route_enabled;
+  if n <> 10 then raise exception 'FAIL 4a: anon main route locations = %', n; end if;
+  begin insert into public.locations (name) values ('ANON'); raise exception 'FAIL 4b: anon wrote';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
-update public.pickup_drop_points set is_active = true where id = (select id from t_ref where tag = 'P_DST_UNSERVED');
 
--- ---- 5. route with ordered main locations and master points -------------
+-- ---- 5. a route built from locations ----------------------------------------
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
 insert into t_ref select 'BUS', (public.create_bus((select id from t_ops where tag = 'A'), 'Loc Bus', 'AN01L0001', 'ac_seater', 3)).id;
@@ -148,7 +142,7 @@ declare
   v_src uuid := (select id from t_ref where tag = 'SRC');
   v_mid uuid := (select id from t_ref where tag = 'MID');
   v_dst uuid := (select id from t_ref where tag = 'DST');
-  v_other uuid := (select id from t_ref where tag = 'OTHER');
+  v_pick uuid := (select id from t_ref where tag = 'PICK');
   r jsonb;
 begin
   r := public.save_bus_layout(v_bus, '{"rows":2,"cols":3,"decks":1,"aisle_cols":[2]}'::jsonb, '[
@@ -157,89 +151,80 @@ begin
     {"seat_code":"2A","deck":1,"row_no":2,"col_no":1,"seat_type":"seater"}]'::jsonb);
   if not (r ->> 'valid')::boolean then raise exception 'FAIL setup layout: %', r -> 'errors'; end if;
 
-  -- 5a. a stop without a main location is rejected
   begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1,2,3,4,5,6,7}', jsonb_build_array(
+    perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
       jsonb_build_object('name','Origin','is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
-      jsonb_build_object('name','Dest','city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
-    raise exception 'FAIL 5a: stop without a main location accepted';
+      jsonb_build_object('city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
+    raise exception 'FAIL 5a: stop without a location accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 
-  -- 5b. first stop must be the origin
   begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
-      jsonb_build_object('name','Origin','city_id',v_other,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
-      jsonb_build_object('name','Dest','city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
-    raise exception 'FAIL 5b: wrong origin stop accepted';
+    perform public.save_bus_route(v_bus, v_pick, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
+      jsonb_build_object('city_id',v_pick,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
+      jsonb_build_object('city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
+    raise exception 'FAIL 5b: non-main origin accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 
-  -- 5c. a location cannot reappear after another one
   begin
     perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
-      jsonb_build_object('name','Origin','city_id',v_src,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
-      jsonb_build_object('name','Mid','city_id',v_mid,'is_boarding',true,'is_dropping',true,'arrival_offset_min',100,'departure_offset_min',105),
-      jsonb_build_object('name','Again','city_id',v_src,'is_boarding',true,'is_dropping',true,'arrival_offset_min',150,'departure_offset_min',155),
-      jsonb_build_object('name','Dest','city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
-    raise exception 'FAIL 5c: repeated location accepted';
-  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-
-  -- 5d. a master point of another location is rejected
-  begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
-      jsonb_build_object('name','Test Dest Stand','city_id',v_src,'master_point_id',(select id from t_ref where tag='P_DST'),'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
-      jsonb_build_object('name','Dest','city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
-    raise exception 'FAIL 5d: point from another location accepted';
-  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
-
-  -- 5e/5f. pickup / drop permissions are enforced independently
-  begin
-    perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
-      jsonb_build_object('name','Pickup Only Corner','city_id',v_src,'master_point_id',(select id from t_ref where tag='P_SRC_PICKONLY'),'is_boarding',true,'is_dropping',true,'arrival_offset_min',0,'departure_offset_min',0),
-      jsonb_build_object('name','Dest','city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
-    raise exception 'FAIL 5e: drop at a pickup-only point accepted';
+      jsonb_build_object('city_id',v_mid,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
+      jsonb_build_object('city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
+    raise exception 'FAIL 5c: wrong first stop accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin
     perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
-      jsonb_build_object('name','Test Bus Stand','city_id',v_src,'master_point_id',(select id from t_ref where tag='P_SRC_BUS'),'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
-      jsonb_build_object('name','Test Mid Market','city_id',v_mid,'master_point_id',(select id from t_ref where tag='P_MID_DROPONLY'),'is_boarding',true,'is_dropping',true,'arrival_offset_min',100,'departure_offset_min',105),
-      jsonb_build_object('name','Dest','city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
-    raise exception 'FAIL 5f: pickup at a drop-only point accepted';
+      jsonb_build_object('city_id',v_src,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
+      jsonb_build_object('city_id',v_mid,'is_boarding',true,'is_dropping',true,'arrival_offset_min',100,'departure_offset_min',105),
+      jsonb_build_object('city_id',v_mid,'is_boarding',true,'is_dropping',true,'arrival_offset_min',110,'departure_offset_min',115),
+      jsonb_build_object('city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
+    raise exception 'FAIL 5d: repeated location accepted';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  begin
+    perform public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1}', jsonb_build_array(
+      jsonb_build_object('city_id',v_src,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
+      jsonb_build_object('city_id',v_pick,'is_boarding',false,'is_dropping',false,'arrival_offset_min',100,'departure_offset_min',105),
+      jsonb_build_object('city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
+    raise exception 'FAIL 5e: stop with no pickup/drop use accepted';
   exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 
-  -- 5g. a valid route: SRC (bus stand) -> MID (drop-only market) -> DST (dest stand)
+  -- valid: SVP -> BAKULTALA (pickup + drop, not a main location) -> RANGAT -> DIGLIPUR
   r := public.save_bus_route(v_bus, v_src, v_dst, 100, '06:00', 240, '{1,2,3,4,5,6,7}', jsonb_build_array(
-    jsonb_build_object('name','Test Bus Stand','city_id',v_src,'master_point_id',(select id from t_ref where tag='P_SRC_BUS'),'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
-    jsonb_build_object('name','Test Mid Market','city_id',v_mid,'master_point_id',(select id from t_ref where tag='P_MID_DROPONLY'),'is_boarding',false,'is_dropping',true,'arrival_offset_min',120,'departure_offset_min',120),
-    jsonb_build_object('name','Test Dest Stand','city_id',v_dst,'master_point_id',(select id from t_ref where tag='P_DST'),'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
+    jsonb_build_object('name','typed names are ignored','city_id',v_src,'is_boarding',true,'is_dropping',false,'arrival_offset_min',0,'departure_offset_min',0),
+    jsonb_build_object('city_id',v_pick,'is_boarding',true,'is_dropping',true,'arrival_offset_min',60,'departure_offset_min',65),
+    jsonb_build_object('city_id',v_mid,'is_boarding',false,'is_dropping',true,'arrival_offset_min',120,'departure_offset_min',120),
+    jsonb_build_object('city_id',v_dst,'is_boarding',false,'is_dropping',true,'arrival_offset_min',240,'departure_offset_min',240)));
   if not (r ->> 'valid')::boolean then raise exception 'FAIL 5g: valid route rejected: %', r -> 'errors'; end if;
 end $$;
 
--- route_stops keeps the main-location order; service_stops exposes only the served master points
+-- stop names always come from the location
+do $$
+declare v_route uuid := (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+begin
+  if exists (select 1 from public.boarding_points b join public.locations l on l.id = b.city_id where b.route_id = v_route and b.name <> l.name) then
+    raise exception 'FAIL 5h: a stop name differs from its location';
+  end if;
+end $$;
+
+-- route_stops: ordered locations; service_stops: what the service serves
 do $$
 declare
   v_route uuid := (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
   v_svc uuid := (select id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
   got uuid[];
-  n int;
 begin
-  select array_agg(main_location_id order by stop_order) into got from public.route_stops where route_id = v_route;
-  if got is distinct from array[(select id from t_ref where tag='SRC'), (select id from t_ref where tag='MID'), (select id from t_ref where tag='DST')] then
-    raise exception 'FAIL 5h: route_stops order wrong: %', got;
+  select array_agg(location_id order by stop_order) into got from public.route_stops where route_id = v_route;
+  if got is distinct from array[(select id from t_ref where tag='SRC'), (select id from t_ref where tag='PICK'), (select id from t_ref where tag='MID'), (select id from t_ref where tag='DST')] then
+    raise exception 'FAIL 5i: route_stops order wrong: %', got;
   end if;
-  select count(*) into n from public.service_stops where service_id = v_svc;
-  if n <> 3 then raise exception 'FAIL 5i: service_stops should list 3 master points, got %', n; end if;
-  if not exists (select 1 from public.service_stops where service_id = v_svc and point_id = (select id from t_ref where tag='P_SRC_BUS') and pickup_enabled and not drop_enabled) then
-    raise exception 'FAIL 5j: bus stand should be pickup only';
+  if not exists (select 1 from public.service_stops where service_id = v_svc and location_id = (select id from t_ref where tag='PICK') and pickup_enabled and drop_enabled and pickup_time = time '07:05') then
+    raise exception 'FAIL 5j: service_stops for the intermediate stop';
   end if;
-  if not exists (select 1 from public.service_stops where service_id = v_svc and point_id = (select id from t_ref where tag='P_MID_DROPONLY') and drop_enabled and not pickup_enabled and drop_time = time '08:00') then
-    raise exception 'FAIL 5k: mid market should be drop only at 08:00';
-  end if;
-  if exists (select 1 from public.service_stops where service_id = v_svc and point_id = (select id from t_ref where tag='P_SRC_BAZAAR')) then
-    raise exception 'FAIL 5l: an unserved point appears in service_stops';
+  if exists (select 1 from public.service_stops where service_id = v_svc and location_id = (select id from t_ref where tag='OTHER')) then
+    raise exception 'FAIL 5k: unserved location in service_stops';
   end if;
 end $$;
 
--- ---- 6. activate the bus and create a trip ------------------------------
+-- ---- 6. activate and create a trip -----------------------------------------
 do $$
 declare v_bus uuid := (select id from t_ref where tag = 'BUS');
 begin
@@ -256,7 +241,7 @@ with s as (select id, operator_id, route_id, bus_id from public.bus_services whe
        returning id)
 insert into t_ref select 'TRIP', id from t;
 
--- ---- 7. point-aware search ----------------------------------------------
+-- ---- 7. search by location ids ---------------------------------------------
 select set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-00000000000d","role":"authenticated"}', true);
 set local role authenticated;
 
@@ -265,47 +250,95 @@ declare
   v_src uuid := (select id from t_ref where tag = 'SRC');
   v_dst uuid := (select id from t_ref where tag = 'DST');
   v_mid uuid := (select id from t_ref where tag = 'MID');
+  v_pick uuid := (select id from t_ref where tag = 'PICK');
+  v_other uuid := (select id from t_ref where tag = 'OTHER');
   d date := current_date + 2;
   res jsonb; pts jsonb;
+  hits int;
 begin
   res := public.search_trips(v_src, v_dst, d);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 1 then raise exception 'FAIL 7a: plain search should find the trip: %', res; end if;
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 1 then raise exception 'FAIL 7a: plain search should find the trip'; end if;
+
   res := public.search_trips(v_src, v_mid, d);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 1 then raise exception 'FAIL 7b: intermediate-location search should find the trip'; end if;
-  res := public.search_trips(v_src, v_dst, d, (select id from t_ref where tag='P_SRC_BUS'), (select id from t_ref where tag='P_DST'));
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 1 then raise exception 'FAIL 7c: exact pickup+drop should match'; end if;
-  res := public.search_trips(v_src, v_dst, d, (select id from t_ref where tag='P_SRC_BUS'), null);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 1 then raise exception 'FAIL 7d: pickup-only filter should match'; end if;
-  res := public.search_trips(v_src, v_dst, d, (select id from t_ref where tag='P_SRC_BAZAAR'), null);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 0 then raise exception 'FAIL 7e: unserved pickup point matched'; end if;
-  res := public.search_trips(v_src, v_dst, d, null, (select id from t_ref where tag='P_DST_UNSERVED'));
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 0 then raise exception 'FAIL 7f: unserved drop point matched'; end if;
-  res := public.search_trips(v_mid, v_dst, d, (select id from t_ref where tag='P_MID_DROPONLY'), null);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 0 then raise exception 'FAIL 7g: pickup at a drop-only point matched'; end if;
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 1 then raise exception 'FAIL 7b: search to an intermediate main location'; end if;
+
+  res := public.search_trips(v_src, v_dst, d, v_pick, null);
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 1 then raise exception 'FAIL 7c: pickup at a served stop should match'; end if;
+  res := public.search_trips(v_src, v_dst, d, v_pick, v_mid);
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 1 then raise exception 'FAIL 7d: pickup + drop at served stops should match'; end if;
+
+  res := public.search_trips(v_src, v_dst, d, v_other, null);
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 0 then raise exception 'FAIL 7e: unserved pickup matched'; end if;
+  res := public.search_trips(v_src, v_dst, d, null, v_other);
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 0 then raise exception 'FAIL 7f: unserved drop matched'; end if;
+  res := public.search_trips(v_src, v_mid, d, v_dst, null);
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 0 then raise exception 'FAIL 7g: pickup beyond the destination matched'; end if;
 
   pts := public.get_journey_points(v_src, v_dst, d);
-  if jsonb_array_length(pts -> 'pickup') <> 1 or (pts -> 'pickup' -> 0 ->> 'name') <> 'Test Bus Stand' then raise exception 'FAIL 7h: pickup options wrong: %', pts; end if;
-  if jsonb_array_length(pts -> 'drop') <> 1 or (pts -> 'drop' -> 0 ->> 'name') <> 'Test Dest Stand' then raise exception 'FAIL 7i: drop options wrong: %', pts; end if;
+  if not exists (select 1 from jsonb_array_elements(pts -> 'pickup') p where p ->> 'location_code' = 'T8BAK001' and p ->> 'name' = 'BAKULTALA' and p ->> 'id' = v_pick::text) then
+    raise exception 'FAIL 7h: pickup options: %', pts;
+  end if;
+  if jsonb_array_length(pts -> 'pickup') <> 2 then raise exception 'FAIL 7i: expected the origin and bakultala as pickups, got %', pts -> 'pickup'; end if;
+  if jsonb_array_length(pts -> 'drop') <> 3 then raise exception 'FAIL 7j: expected 3 drop options, got %', pts -> 'drop'; end if;
 end $$;
 
--- ---- 8. deactivation: hidden from new searches, existing data stays valid
+-- ---- 8. disabling a pickup flag hides it from customers; drop stays --------
 reset role;
-select set_config('request.jwt.claims', '', true);
-update public.cities set is_active = false where id = (select id from t_ref where tag = 'MID');
+select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-00000000000c","role":"authenticated"}', true);
+set local role authenticated;
+update public.locations set is_pickup_enabled = false where id = (select id from t_ref where tag = 'PICK');
+reset role;
+select set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-00000000000d","role":"authenticated"}', true);
 set local role authenticated;
 do $$
-declare
-  v_src uuid := (select id from t_ref where tag = 'SRC');
-  v_mid uuid := (select id from t_ref where tag = 'MID');
-  v_dst uuid := (select id from t_ref where tag = 'DST');
-  res jsonb;
+declare pts jsonb;
 begin
-  res := public.search_trips(v_src, v_mid, current_date + 2);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 0 then raise exception 'FAIL 8a: inactive location is still searchable'; end if;
-  res := public.search_trips(v_src, v_dst, current_date + 2);
-  if (select count(*) from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A') <> 1 then raise exception 'FAIL 8b: other searches must keep working'; end if;
-  if (select count(*) from public.route_stops where main_location_id = v_mid) <> 1 then raise exception 'FAIL 8c: existing route lost its stop'; end if;
-  if exists (select 1 from public.search_cities('', 20) where id = v_mid) then raise exception 'FAIL 8d: inactive location in city list'; end if;
+  pts := public.get_journey_points((select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'DST'), current_date + 2);
+  if exists (select 1 from jsonb_array_elements(pts -> 'pickup') p where p ->> 'location_code' = 'T8BAK001') then
+    raise exception 'FAIL 8a: pickup-disabled location still offered';
+  end if;
+  if not exists (select 1 from jsonb_array_elements(pts -> 'drop') p where p ->> 'location_code' = 'T8BAK001') then
+    raise exception 'FAIL 8b: drop flag should be independent';
+  end if;
+end $$;
+
+-- ---- 9. rename propagates; deactivation blocks new searches only -----------
+reset role;
+select set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-00000000000c","role":"authenticated"}', true);
+set local role authenticated;
+update public.locations set name = 'RANGAT TOWN' where id = (select id from t_ref where tag = 'MID');
+do $$
+declare v_route uuid := (select route_id from public.bus_services where bus_id = (select id from t_ref where tag = 'BUS'));
+begin
+  if not exists (select 1 from public.dropping_points where route_id = v_route and name = 'RANGAT TOWN') then raise exception 'FAIL 9a: rename did not reach the route stop'; end if;
+  if (select location_code from public.locations where id = (select id from t_ref where tag = 'MID')) <> 'T8RAN001' then raise exception 'FAIL 9b: code changed'; end if;
+end $$;
+update public.locations set is_active = false where id = (select id from t_ref where tag = 'MID');
+reset role;
+create function pg_temp.stop_count(p_loc uuid) returns bigint language sql security definer as $f$
+  select count(*) from public.route_stops where location_id = p_loc
+$f$;
+grant execute on function pg_temp.stop_count(uuid) to authenticated;
+select set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-00000000000d","role":"authenticated"}', true);
+set local role authenticated;
+do $$
+declare res jsonb; hits int;
+begin
+  res := public.search_trips((select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'MID'), current_date + 2);
+  if jsonb_array_length(res -> 'direct') <> 0 then raise exception 'FAIL 9c: disabled location still searchable'; end if;
+  res := public.search_trips((select id from t_ref where tag = 'SRC'), (select id from t_ref where tag = 'DST'), current_date + 2);
+  select count(*) into hits from jsonb_array_elements(res -> 'direct') e where e ->> 'operator_name' = 'Op A';
+  if hits <> 1 then raise exception 'FAIL 9d: the existing route must keep working'; end if;
+  -- read with definer rights: since 20261002000600 a customer cannot read route stops directly
+  if pg_temp.stop_count((select id from t_ref where tag = 'MID')) <> 1 then raise exception 'FAIL 9e: stop lost'; end if;
+  if exists (select 1 from public.search_cities('', 50) where id = (select id from t_ref where tag = 'MID')) then raise exception 'FAIL 9f: disabled location in city list'; end if;
 end $$;
 
 reset role;

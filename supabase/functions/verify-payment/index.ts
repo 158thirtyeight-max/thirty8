@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const caller = callerClient(req);
     const { data: order, error } = await caller
       .from("orders")
-      .select("id, amount_cents, razorpay_order_id, status")
+      .select("id, amount_cents, razorpay_order_id, status, orderable_type, orderable_id")
       .eq("order_reference", order_reference)
       .single();
 
@@ -42,6 +42,25 @@ Deno.serve(async (req) => {
     }
 
     if (order.status === "paid") {
+      // The webhook may have processed this payment first. "Paid" does not mean the
+      // booking was confirmed: a payment that could not be applied is paid + refund pending.
+      if (order.orderable_type === "booking") {
+        const { data: booking } = await caller
+          .from("bookings")
+          .select("status")
+          .eq("id", order.orderable_id)
+          .maybeSingle();
+        if (booking?.status !== "confirmed") {
+          return jsonResponse(
+            {
+              ok: false,
+              code: "payment_not_applied",
+              error: "Your payment was received but the booking could not be confirmed. It will be refunded.",
+            },
+            409,
+          );
+        }
+      }
       return jsonResponse({ ok: true, already_processed: true });
     }
 
@@ -55,6 +74,21 @@ Deno.serve(async (req) => {
     if (rpcError) {
       console.error("confirm_booking_after_payment failed", rpcError);
       return jsonResponse({ error: "Failed to confirm booking" }, 500);
+    }
+
+    // The payment was received but could not be applied to the booking (expired,
+    // seat resold, amount mismatch...). A refund has been queued; do not tell the
+    // client the booking is confirmed.
+    if (result?.status === "refund_pending") {
+      return jsonResponse(
+        {
+          ok: false,
+          code: "payment_not_applied",
+          error: "Your payment was received but the booking could not be confirmed. It will be refunded.",
+          reason: result.reason,
+        },
+        409,
+      );
     }
 
     return jsonResponse({ ok: true, ...result });

@@ -107,6 +107,12 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
     });
   }
 
+  /// Locations used by the other stops: a location appears once on a route.
+  Set<String> _takenIds(RouteStop except) => {
+        for (final s in _stops)
+          if (!identical(s, except) && s.cityId != null) s.cityId!,
+      };
+
   Future<void> _pickTime(RouteStop stop, {required bool arrival}) async {
     final current = arrival ? stop.arrivalMin : stop.departureMin;
     final picked = await showTimePicker(
@@ -133,7 +139,6 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
       }
       stop
         ..cityId = id
-        ..masterPointId = null
         ..name = name;
     });
   }
@@ -190,32 +195,32 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
   Widget build(BuildContext context) {
     final routeAsync = ref.watch(busRouteProvider(widget.bus['id'] as String));
     final citiesAsync = ref.watch(citiesProvider);
-    final pointsAsync = ref.watch(locationPointsProvider);
+    final locationsAsync = ref.watch(stopLocationsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Route & stops')),
       body: SafeArea(
         child: Builder(builder: (context) {
-          if (routeAsync.hasError || citiesAsync.hasError || pointsAsync.hasError) {
+          if (routeAsync.hasError || citiesAsync.hasError || locationsAsync.hasError) {
             return AppErrorState(
               message: 'Could not load the route.',
               onRetry: () {
                 ref.invalidate(busRouteProvider(widget.bus['id'] as String));
                 ref.invalidate(citiesProvider);
-                ref.invalidate(locationPointsProvider);
+                ref.invalidate(stopLocationsProvider);
               },
             );
           }
-          if (!routeAsync.hasValue || !citiesAsync.hasValue || !pointsAsync.hasValue) return const AppLoadingState();
+          if (!routeAsync.hasValue || !citiesAsync.hasValue || !locationsAsync.hasValue) return const AppLoadingState();
           final cities = citiesAsync.requireValue;
           _load(routeAsync.requireValue, cities);
-          return _form(context, cities, pointsAsync.requireValue);
+          return _form(context, cities, locationsAsync.requireValue);
         }),
       ),
     );
   }
 
-  Widget _form(BuildContext context, List<Map<String, dynamic>> cities, List<Map<String, dynamic>> points) {
+  Widget _form(BuildContext context, List<Map<String, dynamic>> cities, List<Map<String, dynamic>> locations) {
     final theme = Theme.of(context);
     final duration = journeyDurationMin(_stops);
     final edit = _editable && !_saving;
@@ -278,8 +283,8 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
           lockBoarding: true,
           lockDropping: false,
           lockLocation: true,
-          cities: cities,
-          points: points,
+          locations: locations,
+          takenIds: _takenIds(_stops.first),
           enabled: edit,
           onPickTime: (arrival) => _pickTime(_stops.first, arrival: arrival),
           onChanged: () => setState(() => _dirty = true),
@@ -308,8 +313,8 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
                 lockDropping: false,
                 lockLocation: false,
                 enabled: edit,
-                cities: cities,
-                points: points,
+                locations: locations,
+                takenIds: _takenIds(_stops[i]),
                 dragIndex: i - 1,
                 onRemove: () => setState(() { _dirty = true; _stops.removeAt(i); }),
                 onPickTime: (arrival) => _pickTime(_stops[i], arrival: arrival),
@@ -338,8 +343,8 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
           lockBoarding: false,
           lockDropping: true,
           lockLocation: true,
-          cities: cities,
-          points: points,
+          locations: locations,
+          takenIds: _takenIds(_stops.first),
           enabled: edit,
           onPickTime: (arrival) => _pickTime(_stops.last, arrival: arrival),
           onChanged: () => setState(() => _dirty = true),

@@ -28,7 +28,7 @@ update public.operators set status = 'approved', application_status = 'approved'
 
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}', true);
 set local role authenticated;
-insert into t_bus select 'SEATER', (public.create_bus((select id from t_ops where tag = 'A'), 'Seater', 'AN01A0001', 'ac_seater', 5)).id;
+insert into t_bus select 'SEATER', (public.create_bus((select id from t_ops where tag = 'A'), 'Seater', 'AN01A0001', 'ac_seater', 6)).id;
 insert into t_bus select 'SLEEPER', (public.create_bus((select id from t_ops where tag = 'A'), 'Sleeper', 'AN01A0002', 'ac_sleeper', 2)).id;
 
 -- ---- 1. no layout yet -> invalid ---------------------------------------
@@ -72,16 +72,54 @@ begin
     raise exception 'FAIL 3a: duplicate cell not reported: %', r -> 'errors';
   end if;
 
-  -- capacity mismatch (4 bookable vs capacity 5)
+  -- capacity mismatch (4 positions vs declared capacity 6) is a warning, not an error
   r := public.save_bus_layout(v_bus, '{"rows":3,"cols":3,"decks":1,"aisle_cols":[2],"numbering":"row_letter"}'::jsonb, '[
     {"seat_code":"1A","deck":1,"row_no":1,"col_no":1,"seat_type":"seater"},
     {"seat_code":"2A","deck":1,"row_no":2,"col_no":1,"seat_type":"seater"},
     {"seat_code":"3A","deck":1,"row_no":3,"col_no":1,"seat_type":"seater"},
     {"seat_code":"3B","deck":1,"row_no":3,"col_no":3,"seat_type":"seater"}
   ]'::jsonb);
-  if (r ->> 'valid')::boolean or not (r ->> 'errors') like '%do not match the bus capacity%' then
-    raise exception 'FAIL 3b: capacity mismatch not reported: %', r -> 'errors';
+  if not (r ->> 'valid')::boolean or not (r ->> 'warnings') like '%declared bus capacity is 6%' then
+    raise exception 'FAIL 3b: capacity mismatch should be a warning: %', r;
   end if;
+
+  -- more bookable seats than the declared capacity is an error
+  r := public.save_bus_layout(v_bus, '{"rows":3,"cols":3,"decks":1,"aisle_cols":[2],"numbering":"row_letter"}'::jsonb, '[
+    {"seat_code":"1A","deck":1,"row_no":1,"col_no":1,"seat_type":"seater"},
+    {"seat_code":"1B","deck":1,"row_no":1,"col_no":3,"seat_type":"seater"},
+    {"seat_code":"2A","deck":1,"row_no":2,"col_no":1,"seat_type":"seater"},
+    {"seat_code":"2B","deck":1,"row_no":2,"col_no":3,"seat_type":"seater"},
+    {"seat_code":"3A","deck":1,"row_no":3,"col_no":1,"seat_type":"seater"},
+    {"seat_code":"3B","deck":1,"row_no":3,"col_no":3,"seat_type":"seater"},
+    {"seat_code":"4A","deck":1,"row_no":3,"col_no":3,"seat_type":"seater"}
+  ]'::jsonb);
+  if (r ->> 'valid')::boolean or not (r ->> 'errors') like '%exceed the bus capacity%' then
+    raise exception 'FAIL 3b2: bookable above capacity not reported: %', r -> 'errors';
+  end if;
+
+  -- manual numbering: a seat without a number blocks submission; roles stored
+  r := public.save_bus_layout(v_bus, '{"rows":3,"cols":3,"decks":1,"aisle_cols":[2],"numbering":"manual"}'::jsonb, '[
+    {"seat_code":"","deck":1,"row_no":1,"col_no":1,"seat_type":"seater","kind":"bookable"},
+    {"seat_code":"7","deck":1,"row_no":2,"col_no":1,"seat_type":"seater","kind":"bookable"},
+    {"seat_code":"8","deck":1,"row_no":3,"col_no":1,"seat_type":"seater","kind":"reserved","role":"ladies"},
+    {"seat_code":"DRV","deck":1,"row_no":1,"col_no":3,"seat_type":"seater","kind":"crew","role":"driver"}
+  ]'::jsonb);
+  if (r ->> 'valid')::boolean or not (r ->> 'errors') like '%not been numbered yet%' then
+    raise exception 'FAIL 3b3: unnumbered seat not reported: %', r -> 'errors';
+  end if;
+  if (select count(*) from public.seats s join public.bus_layouts bl on bl.id = s.bus_layout_id
+      where bl.bus_id = v_bus and bl.is_active and s.role in ('ladies', 'driver')) <> 2 then
+    raise exception 'FAIL 3b4: seat roles not stored';
+  end if;
+
+  -- role must match kind
+  begin
+    perform public.save_bus_layout(v_bus, '{"rows":1,"cols":1,"decks":1}'::jsonb, '[
+      {"seat_code":"1","deck":1,"row_no":1,"col_no":1,"seat_type":"seater","kind":"bookable","role":"ladies"}]'::jsonb);
+    raise exception 'FAIL 3b5: ladies role accepted on a bookable seat';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
 
   -- seat on the aisle, outside the grid
   r := public.save_bus_layout(v_bus, '{"rows":3,"cols":3,"decks":1,"aisle_cols":[2],"numbering":"row_letter"}'::jsonb, '[
@@ -208,6 +246,45 @@ begin
     raise exception 'FAIL 7: layout editable while under review';
   exception when others then
     if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+end $$;
+
+-- ---- 8. only passenger seats can ever become trip inventory ------------
+-- The guard trigger fires before foreign keys are checked, so a random trip id is enough:
+-- a non-bookable seat is refused by the guard, a bookable seat gets past it (and only then
+-- fails on the missing trip).
+reset role;
+select set_config('request.jwt.claims', '', true);
+do $$
+declare v_layout uuid; v_seat uuid; k text;
+begin
+  select id into v_layout from public.bus_layouts
+  where bus_id = (select id from t_bus where tag = 'SEATER') and is_active;
+  delete from public.seats where bus_layout_id = v_layout;
+  insert into public.seats (bus_layout_id, seat_code, deck, row_no, col_no, seat_type, kind, role) values
+    (v_layout, '1', 1, 1, 1, 'seater', 'bookable', null),
+    (v_layout, '2', 1, 2, 1, 'seater', 'reserved', 'ladies'),
+    (v_layout, '3', 1, 3, 1, 'seater', 'reserved', 'accessible'),
+    (v_layout, 'DRV', 1, 1, 3, 'seater', 'crew', 'driver'),
+    (v_layout, 'CND', 1, 2, 3, 'seater', 'crew', 'conductor'),
+    (v_layout, 'NA', 1, 3, 3, 'seater', 'unavailable', null);
+
+  foreach k in array array['reserved', 'crew', 'unavailable'] loop
+    select id into v_seat from public.seats where bus_layout_id = v_layout and kind = k limit 1;
+    begin
+      insert into public.trip_seats (trip_id, seat_id, status, fare_cents) values (gen_random_uuid(), v_seat, 'available', 100);
+      raise exception 'FAIL 8a: % seat accepted as trip inventory', k;
+    exception when others then
+      if sqlerrm like 'FAIL%' then raise; end if;
+      if sqlerrm not like '%Only passenger seats%' then raise exception 'FAIL 8b: unexpected error for %: %', k, sqlerrm; end if;
+    end;
+  end loop;
+
+  select id into v_seat from public.seats where bus_layout_id = v_layout and kind = 'bookable';
+  begin
+    insert into public.trip_seats (trip_id, seat_id, status, fare_cents) values (gen_random_uuid(), v_seat, 'available', 100);
+    raise exception 'FAIL 8c: expected a foreign key error for the fake trip';
+  exception when foreign_key_violation then null;
   end;
 end $$;
 

@@ -9,7 +9,16 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: AppLoadingState()),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppLogoMark(variant: AppLogoVariant.plus, size: 72),
+            SizedBox(height: AppSpacing.lg),
+            AppLoadingState(),
+          ],
+        ),
+      ),
     );
   }
 }

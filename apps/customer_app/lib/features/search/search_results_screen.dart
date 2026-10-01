@@ -39,8 +39,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
         'p_source_city_id': widget.source.id,
         'p_destination_city_id': widget.destination.id,
         'p_travel_date': DateFormat('yyyy-MM-dd').format(widget.date),
-        'p_pickup_point_id': _pickupId,
-        'p_drop_point_id': _dropId,
+        'p_pickup_location_id': _pickupId,
+        'p_drop_location_id': _dropId,
       });
       if (!mounted) return;
       final map = res as Map<String, dynamic>;
@@ -104,9 +104,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: Column(
                       children: [
-                        if (pickups.isNotEmpty) filter('Pickup point', pickups, _pickupId, (v) => changed(() => _pickupId = v)),
+                        if (pickups.isNotEmpty) filter('Pickup location', pickups, _pickupId, (v) => changed(() => _pickupId = v)),
                         if (pickups.isNotEmpty && drops.isNotEmpty) const SizedBox(height: AppSpacing.sm),
-                        if (drops.isNotEmpty) filter('Drop point', drops, _dropId, (v) => changed(() => _dropId = v)),
+                        if (drops.isNotEmpty) filter('Drop location', drops, _dropId, (v) => changed(() => _dropId = v)),
                       ],
                     ),
                   )
@@ -130,8 +130,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                         trip: t,
                         sourceCityId: widget.source.id,
                         destinationCityId: widget.destination.id,
-                        pickupPointId: _pickupId,
-                        dropPointId: _dropId,
+                        pickupLocationId: _pickupId,
+                        dropLocationId: _dropId,
                       )),
                   const SizedBox(height: AppSpacing.md),
                 ],
@@ -151,13 +151,13 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 String _time(String iso) => DateFormat('h:mm a').format(DateTime.parse(iso).toLocal());
 
 class _DirectTripCard extends StatelessWidget {
-  const _DirectTripCard({required this.trip, required this.sourceCityId, required this.destinationCityId, this.pickupPointId, this.dropPointId});
+  const _DirectTripCard({required this.trip, required this.sourceCityId, required this.destinationCityId, this.pickupLocationId, this.dropLocationId});
 
   final Map<String, dynamic> trip;
   final String sourceCityId;
   final String destinationCityId;
-  final String? pickupPointId;
-  final String? dropPointId;
+  final String? pickupLocationId;
+  final String? dropLocationId;
 
   @override
   Widget build(BuildContext context) {
@@ -201,8 +201,8 @@ class _DirectTripCard extends StatelessWidget {
                     trip: trip,
                     sourceCityId: sourceCityId,
                     destinationCityId: destinationCityId,
-                    pickupPointId: pickupPointId,
-                    dropPointId: dropPointId,
+                    pickupLocationId: pickupLocationId,
+                    dropLocationId: dropLocationId,
                   ),
                 ),
               );
