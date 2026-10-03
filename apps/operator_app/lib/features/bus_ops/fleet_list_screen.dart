@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/operator_providers.dart';
 import '../../core/supabase_providers.dart';
 import 'bus_form_screen.dart';
+import 'seat_layout/seat_layout_wizard_screen.dart';
 
 final busesProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, operatorId) async {
   final supabase = ref.watch(supabaseProvider);
@@ -40,6 +41,18 @@ class FleetListScreen extends ConsumerWidget {
                         leading: const Icon(Icons.directions_bus),
                         title: bus['registration_number'] as String,
                         subtitle: '${bus['bus_type']} · ${bus['total_seats']} seats · ${bus['status']}',
+                        trailing: IconButton(
+                          icon: const Icon(Icons.event_seat_outlined),
+                          tooltip: 'Configure seat layout',
+                          onPressed: () async {
+                            final saved = await Navigator.of(buildContext).push<bool>(
+                              MaterialPageRoute(
+                                builder: (_) => SeatLayoutWizardScreen(busId: bus['id'] as String, initialCapacity: bus['total_seats'] as int),
+                              ),
+                            );
+                            if (saved == true) ref.invalidate(busesProvider(context.operatorId));
+                          },
+                        ),
                       ),
                     );
                   },

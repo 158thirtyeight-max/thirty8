@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase_providers.dart';
+import 'seat_layout/seat_layout_wizard_screen.dart';
 
-/// Creates a bus plus a default 2+2 seat layout sized to `total_seats` — the
+/// Creates a bus, then opens the seat layout wizard — the
 /// generate_trip_seats trigger on bus_trips needs an active bus_layout with
 /// seats to exist before any trip can be created for this bus.
 class BusFormScreen extends ConsumerStatefulWidget {
@@ -24,7 +25,7 @@ class _BusFormScreenState extends ConsumerState<BusFormScreen> {
   bool _loading = false;
   String? _error;
 
-  static const _busTypes = ['ac_seater', 'non_ac_seater', 'ac_sleeper', 'non_ac_sleeper', 'ac_seater_sleeper'];
+  static const _busTypes = ['ac_seater', 'non_ac_seater', 'ac_sleeper', 'non_ac_sleeper', 'ac_semi_sleeper', 'non_ac_semi_sleeper'];
 
   @override
   void dispose() {
@@ -54,32 +55,12 @@ class _BusFormScreenState extends ConsumerState<BusFormScreen> {
           .select()
           .single();
 
-      final layout = await supabase
-          .from('bus_layouts')
-          .insert({'bus_id': bus['id'], 'name': 'Default layout', 'deck_count': 1})
-          .select()
-          .single();
-
-      const columns = ['A', 'B', 'C', 'D'];
-      final seatRows = <Map<String, dynamic>>[];
-      var seatsLeft = totalSeats;
-      var row = 1;
-      while (seatsLeft > 0) {
-        final colsThisRow = seatsLeft >= 4 ? 4 : seatsLeft;
-        for (var c = 0; c < colsThisRow; c++) {
-          seatRows.add({
-            'bus_layout_id': layout['id'],
-            'seat_code': '$row${columns[c]}',
-            'deck': 1,
-            'row_no': row,
-            'col_no': c + 1,
-            'seat_type': 'seater',
-          });
-        }
-        seatsLeft -= colsThisRow;
-        row++;
-      }
-      await supabase.from('seats').insert(seatRows);
+      // Seat layout is configured in the guided wizard; the bus exists first
+      // so the wizard can save drafts against it.
+      if (!mounted) return;
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => SeatLayoutWizardScreen(busId: bus['id'] as String, initialCapacity: totalSeats)),
+      );
 
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -118,8 +99,8 @@ class _BusFormScreenState extends ConsumerState<BusFormScreen> {
                 AppTextField(
                   controller: _seatsController,
                   keyboardType: TextInputType.number,
-                  label: 'Total seats',
-                  helperText: 'A default 2+2 layout will be generated automatically',
+                  label: 'Total capacity',
+                  helperText: 'Next, you will set up the seat layout step by step',
                   validator: (v) {
                     final n = int.tryParse(v ?? '');
                     if (n == null || n < 1 || n > 80) return 'Enter a number between 1 and 80';
@@ -132,7 +113,7 @@ class _BusFormScreenState extends ConsumerState<BusFormScreen> {
                 ],
                 const SizedBox(height: 24),
                 AppButton(
-                  label: 'Save bus',
+                  label: 'Save & set up seats',
                   onPressed: _loading ? null : _save,
                   loading: _loading,
                   expand: true,

@@ -26,6 +26,7 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _seats = [];
+  int _aisleAfterCol = 2;
   final Set<String> _selectedSeatIds = {};
   bool _holding = false;
 
@@ -44,6 +45,8 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
       final map = res as Map<String, dynamic>;
       setState(() {
         _seats = List<Map<String, dynamic>>.from(map['seats'] as List? ?? []);
+        final layout = map['layout'];
+        _aisleAfterCol = (layout is Map ? layout['aisle_after_col'] as num? : null)?.toInt() ?? 2;
         _loading = false;
       });
     } catch (e) {
@@ -145,7 +148,7 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
                           ],
                         ),
                       ),
-                      Expanded(child: SingleChildScrollView(child: _SeatGrid(seats: _seats, selected: _selectedSeatIds, onTap: _toggleSeat))),
+                      Expanded(child: SingleChildScrollView(child: _SeatGrid(seats: _seats, aisleAfterCol: _aisleAfterCol, selected: _selectedSeatIds, onTap: _toggleSeat))),
                       SafeArea(
                         top: false,
                         child: Padding(
@@ -177,9 +180,10 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
 }
 
 class _SeatGrid extends StatelessWidget {
-  const _SeatGrid({required this.seats, required this.selected, required this.onTap});
+  const _SeatGrid({required this.seats, required this.aisleAfterCol, required this.selected, required this.onTap});
 
   final List<Map<String, dynamic>> seats;
+  final int aisleAfterCol;
   final Set<String> selected;
   final void Function(Map<String, dynamic>) onTap;
 
@@ -203,7 +207,9 @@ class _SeatGrid extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 for (int i = 0; i < rowSeats.length; i++) ...[
-                  if (i == 2) const SizedBox(width: 24), // aisle
+                  // Aisle sits after `aisleAfterCol` (from layout_json, default 2+2).
+                  if (i > 0 && (rowSeats[i - 1]['col_no'] as int? ?? i) <= aisleAfterCol && (rowSeats[i]['col_no'] as int? ?? i + 1) > aisleAfterCol)
+                    const SizedBox(width: 24),
                   _SeatButton(seat: rowSeats[i], isSelected: selected.contains(rowSeats[i]['seat_id']), onTap: onTap),
                 ],
               ],
