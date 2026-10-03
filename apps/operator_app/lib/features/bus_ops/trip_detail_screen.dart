@@ -35,6 +35,42 @@ class TripDetailScreen extends ConsumerWidget {
     }
   }
 
+  /// Operators cannot cancel a departure directly: the request goes to the
+  /// admin, who decides and triggers the existing cancellation/refund flow.
+  Future<void> _requestCancellation(BuildContext context, WidgetRef ref) async {
+    final reasonController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request cancellation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('This departure only. Your recurring schedule is not affected. An admin reviews the request and handles passenger refunds.'),
+            const SizedBox(height: 12),
+            TextField(controller: reasonController, decoration: const InputDecoration(labelText: 'Reason')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Back')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Send request')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(supabaseProvider).rpc('request_trip_cancellation', params: {
+        'p_trip_id': tripId,
+        'p_reason': reasonController.text.trim(),
+      });
+      ref.invalidate(tripProvider(tripId));
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send request: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tripAsync = ref.watch(tripProvider(tripId));
@@ -92,13 +128,16 @@ class TripDetailScreen extends ConsumerWidget {
                           onPressed: () => _updateStatus(context, ref, nextStatus),
                         ),
                       ),
-                    if (status != 'cancelled' && status != 'arrived') ...[
+                    if (status == 'scheduled') ...[
                       const SizedBox(width: 8),
-                      AppButton(
-                        label: 'Cancel trip',
-                        variant: AppButtonVariant.outline,
-                        onPressed: () => _updateStatus(context, ref, 'cancelled'),
-                      ),
+                      if (trip['cancellation_request_status'] == 'requested')
+                        const Text('Cancellation requested')
+                      else
+                        AppButton(
+                          label: 'Request cancellation',
+                          variant: AppButtonVariant.outline,
+                          onPressed: () => _requestCancellation(context, ref),
+                        ),
                     ],
                   ],
                 ),
