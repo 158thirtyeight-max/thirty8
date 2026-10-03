@@ -13,9 +13,9 @@ export default async function LoginPage({
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/thirty8-plus-mark.png" alt="thirty8 plus" className="mx-auto h-14 w-14" />
+          <img src="/brand/thirty8-plus-mark.png" alt="38 Admin" className="mx-auto h-14 w-14" />
           <h1 className="mt-3 text-2xl font-semibold text-text-primary">
-            thirty8 <span className="font-normal text-text-tertiary">plus</span>
+            38 <span className="font-normal text-text-tertiary">Admin</span>
           </h1>
           <p className="mt-1 text-sm text-text-secondary">Platform control panel</p>
         </div>

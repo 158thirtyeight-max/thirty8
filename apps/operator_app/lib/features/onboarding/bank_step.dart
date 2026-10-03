@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'onboarding_providers.dart';
-import 'requirement_documents.dart';
 import 'validators.dart';
 
 const _accountTypes = {
@@ -11,6 +10,26 @@ const _accountTypes = {
   'current': 'Current',
   'other': 'Other',
 };
+
+/// Banks with a major presence in the Andaman & Nicobar Islands.
+const _andamanBanks = [
+  'State Bank of India',
+  'Andaman & Nicobar State Co-operative Bank',
+  'Punjab National Bank',
+  'Canara Bank',
+  'Bank of India',
+  'Bank of Baroda',
+  'Union Bank of India',
+  'Indian Bank',
+  'Indian Overseas Bank',
+  'Central Bank of India',
+  'UCO Bank',
+  'HDFC Bank',
+  'ICICI Bank',
+  'Axis Bank',
+  'India Post Payments Bank',
+];
+const _otherBank = '__other__';
 
 /// Step 3 — bank & payout information.
 class BankStep extends ConsumerWidget {
@@ -71,12 +90,12 @@ class _BankFormState extends ConsumerState<_BankForm> {
   late final TextEditingController _holder;
   late final TextEditingController _bank;
   late final TextEditingController _branch;
-  late final TextEditingController _bankAddress;
   late final TextEditingController _account;
   late final TextEditingController _confirmAccount;
   late final TextEditingController _ifsc;
   late final TextEditingController _micr;
   String? _accountType;
+  String? _bankChoice; // a listed bank, or _otherBank to type a new one
   bool _saving = false;
   String? _error;
 
@@ -91,8 +110,10 @@ class _BankFormState extends ConsumerState<_BankForm> {
           : ((widget.operator['legal_name'] as String?) ?? ''),
     );
     _bank = TextEditingController(text: s('bank_name'));
+    if (_bank.text.isNotEmpty) {
+      _bankChoice = _andamanBanks.contains(_bank.text) ? _bank.text : _otherBank;
+    }
     _branch = TextEditingController(text: s('branch_name'));
-    _bankAddress = TextEditingController(text: s('bank_address'));
     _account = TextEditingController(text: s('account_number'));
     // A previously saved number was already confirmed, so it is prefilled.
     _confirmAccount = TextEditingController(text: s('account_number'));
@@ -103,7 +124,7 @@ class _BankFormState extends ConsumerState<_BankForm> {
 
   @override
   void dispose() {
-    for (final c in [_holder, _bank, _branch, _bankAddress, _account, _confirmAccount, _ifsc, _micr]) {
+    for (final c in [_holder, _bank, _branch, _account, _confirmAccount, _ifsc, _micr]) {
       c.dispose();
     }
     super.dispose();
@@ -134,7 +155,6 @@ class _BankFormState extends ConsumerState<_BankForm> {
         holder: _holder.text,
         bankName: _bank.text,
         branch: _branch.text,
-        bankAddress: _bankAddress.text,
         accountNumber: _account.text,
         ifsc: _ifsc.text,
         micr: _micr.text,
@@ -160,7 +180,6 @@ class _BankFormState extends ConsumerState<_BankForm> {
   @override
   Widget build(BuildContext context) {
     final busy = _saving;
-    final gst = ref.watch(operatorKycProvider(widget.operatorId)).value?['gst_registered'] as bool?;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -183,25 +202,37 @@ class _BankFormState extends ConsumerState<_BankForm> {
               validator: (v) => Validators.required(v, 'Account holder name'),
             ),
             const SizedBox(height: AppSpacing.md),
-            AppTextField(
-              controller: _bank,
-              label: 'Bank name',
-              textCapitalization: TextCapitalization.words,
-              validator: (v) => Validators.required(v, 'Bank name'),
+            DropdownButtonFormField<String>(
+              initialValue: _bankChoice,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Bank name'),
+              items: [
+                for (final b in _andamanBanks) DropdownMenuItem(value: b, child: Text(b)),
+                const DropdownMenuItem(value: _otherBank, child: Text('Other - add new bank')),
+              ],
+              onChanged: busy
+                  ? null
+                  : (v) => setState(() {
+                        _bankChoice = v;
+                        _bank.text = (v == null || v == _otherBank) ? '' : v;
+                      }),
+              validator: (v) => v == null ? 'Select your bank' : null,
             ),
+            if (_bankChoice == _otherBank) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppTextField(
+                controller: _bank,
+                label: 'New bank name',
+                textCapitalization: TextCapitalization.words,
+                validator: (v) => Validators.required(v, 'Bank name'),
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             AppTextField(
               controller: _branch,
               label: 'Branch name',
               textCapitalization: TextCapitalization.words,
               validator: (v) => Validators.required(v, 'Branch name'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppTextField(
-              controller: _bankAddress,
-              label: 'Bank address (optional)',
-              maxLines: 2,
-              textCapitalization: TextCapitalization.sentences,
             ),
             const SizedBox(height: AppSpacing.md),
             AppTextField(
@@ -244,18 +275,6 @@ class _BankFormState extends ConsumerState<_BankForm> {
               ],
               onChanged: busy ? null : (v) => setState(() => _accountType = v),
               validator: (v) => v == null ? 'Select an account type' : null,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Bank documents', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppSpacing.xs),
-            Text('PDF, JPG or PNG, up to 10 MB each.', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: AppSpacing.sm),
-            RequirementDocuments(
-              operatorId: widget.operatorId,
-              businessType: (widget.operator['business_type'] as String?) ?? 'bus',
-              gstRegistered: gst,
-              step: 'bank',
-              onError: (m) => setState(() => _error = m),
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),

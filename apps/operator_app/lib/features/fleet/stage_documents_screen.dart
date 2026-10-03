@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../onboarding/validators.dart';
 import 'bus_validators.dart';
 import 'fleet_providers.dart';
 
@@ -138,7 +137,7 @@ class _DocCard extends ConsumerWidget {
             if (expiryText != null)
               Text(expiryText, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error)),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => _open(context, ref, d),
                 child: Text(status == 'rejected' ? 'Upload corrected document' : 'Renew / edit'),
@@ -167,7 +166,7 @@ class _DocCard extends ConsumerWidget {
             for (final d in docs) row(d),
             if (docs.isEmpty || multiple)
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.centerRight,
                 child: AppButton(
                   label: 'Upload',
                   icon: Icons.upload_file,
@@ -232,7 +231,7 @@ class _DocSheetState extends ConsumerState<_DocSheet> {
   }
 
   Future<void> _pickFile() async {
-    final f = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: allowedDocumentExtensions);
+    final f = await FilePicker.pickFile(type: FileType.any);
     if (f != null) setState(() => _file = f);
   }
 
@@ -308,7 +307,7 @@ class _DocSheetState extends ConsumerState<_DocSheet> {
             ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: _file != null ? _file!.name : (widget.existing != null ? 'Replace file (optional)' : 'Choose file'),
+              label: _file != null ? _file!.name : (widget.existing != null ? 'Replace file' : 'Choose file'),
               icon: Icons.attach_file,
               variant: AppButtonVariant.outline,
               onPressed: _saving ? null : _pickFile,

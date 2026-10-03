@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase_providers.dart';
 import 'booking_confirmation_screen.dart';
+import 'booking_errors.dart';
+import 'passenger_documents.dart';
 import 'payment_screen.dart';
 
 class PassengerDetailsScreen extends ConsumerStatefulWidget {
@@ -33,13 +35,18 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
   late final List<TextEditingController> _nameControllers;
   late final List<TextEditingController> _ageControllers;
   late final List<String> _genders;
+  late final List<DocType?> _docTypes;
+  late final List<TextEditingController> _docNumbers;
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
 
   Timer? _timer;
+  late DateTime _expiresAt = widget.expiresAt;
   Duration _remaining = Duration.zero;
   bool _expired = false;
   bool _submitting = false;
+  bool _renewed = false;
+  bool _renewing = false;
 
   @override
   void initState() {
@@ -47,13 +54,15 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
     _nameControllers = List.generate(widget.selectedSeats.length, (_) => TextEditingController());
     _ageControllers = List.generate(widget.selectedSeats.length, (_) => TextEditingController());
     _genders = List.generate(widget.selectedSeats.length, (_) => 'male');
+    _docTypes = List.generate(widget.selectedSeats.length, (_) => null);
+    _docNumbers = List.generate(widget.selectedSeats.length, (_) => TextEditingController());
 
-    _remaining = widget.expiresAt.difference(DateTime.now());
+    _remaining = _expiresAt.difference(DateTime.now());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
   void _tick() {
-    final remaining = widget.expiresAt.difference(DateTime.now());
+    final remaining = _expiresAt.difference(DateTime.now());
     if (remaining.isNegative) {
       _timer?.cancel();
       setState(() {
@@ -74,9 +83,34 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
     for (final c in _ageControllers) {
       c.dispose();
     }
+    for (final c in _docNumbers) {
+      c.dispose();
+    }
     _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  /// One extension per hold (the server enforces the limit): more time to fill in details.
+  Future<void> _extend() async {
+    setState(() => _renewing = true);
+    try {
+      final res = await ref.read(supabaseProvider).rpc('renew_seat_hold', params: {'p_hold_token': widget.holdToken, 'p_ttl_seconds': 300});
+      if (!mounted) return;
+      setState(() {
+        _expiresAt = DateTime.parse((res as Map<String, dynamic>)['expires_at'] as String);
+        _renewed = true;
+        _expired = false;
+      });
+      if (!(_timer?.isActive ?? false)) _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    } catch (e) {
+      if (mounted) {
+        setState(() => _renewed = true);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(renewHoldErrorMessage(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _renewing = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -92,6 +126,7 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
           'age': int.parse(_ageControllers[i].text.trim()),
           'gender': _genders[i],
           'phone': _phoneController.text.trim(),
+          ...documentFields(_docTypes[i]!, _docNumbers[i].text),
         },
       );
 
@@ -106,12 +141,16 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
 
       if (!mounted) return;
       final booking = result as Map<String, dynamic>;
+
+      if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PaymentScreen(
             orderReference: booking['order_reference'] as String,
             amountCents: booking['amount_cents'] as int,
             description: 'Booking ${booking['booking_reference']}',
+            contactEmail: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+            contactPhone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
             onSuccess: (_) => BookingConfirmationScreen(bookingReference: booking['booking_reference'] as String),
           ),
         ),
@@ -119,14 +158,7 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      final text = e.toString();
-      final message = _expired
-          ? 'Your seat hold expired.'
-          : text.contains('fare_changed')
-              ? 'The fare changed since you selected your seats. Please go back and review the price.'
-              : text.contains('bus_unavailable')
-                  ? 'This bus is no longer available for booking.'
-                  : 'Could not create the booking. Please try again.';
+      final message = bookingErrorMessage(e, holdExpired: _expired);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -162,6 +194,16 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (!_expired && !_renewed && _remaining.inSeconds < 90)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: AppButton(
+                    label: 'Need more time? Extend by 5 minutes',
+                    variant: AppButtonVariant.outline,
+                    loading: _renewing,
+                    onPressed: _renewing ? null : _extend,
+                  ),
+                ),
               if (_expired)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -201,6 +243,25 @@ class _PassengerDetailsScreenState extends ConsumerState<PassengerDetailsScreen>
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<DocType>(
+                  initialValue: _docTypes[i],
+                  decoration: const InputDecoration(labelText: 'ID type (required for boarding)'),
+                  items: [for (final t in bookableDocTypes) DropdownMenuItem<DocType>(value: t, child: Text(t.label))],
+                  validator: (v) => v == null ? 'Choose an ID type' : null,
+                  onChanged: (v) => setState(() => _docTypes[i] = v),
+                ),
+                const SizedBox(height: 8),
+                AppTextField(
+                  controller: _docNumbers[i],
+                  label: _docTypes[i] == null ? 'ID number' : '${_docTypes[i]!.label} number',
+                  validator: (v) => validatePassengerId(_docTypes[i], v ?? ''),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Only the ID type and number are needed — no photo or scan. The operator sees just the type and the last 4 characters.',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 20),
               ],

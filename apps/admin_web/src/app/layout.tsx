@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Thirty8 Admin",
+  title: "38 Admin",
   description: "Platform control panel for Thirty8",
 };
 

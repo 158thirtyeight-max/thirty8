@@ -1,0 +1,13 @@
+drop trigger if exists guard_bus_service_active on public.bus_trips;
+drop trigger if exists guard_bus_service_active on public.buses;
+drop function if exists private.guard_bus_service_active();
+drop function if exists public.admin_set_service_state(uuid, public.operator_service_type, text, text);
+drop function if exists public.set_operator_service(uuid, public.operator_service_type, boolean, boolean);
+drop function if exists public.get_service_disable_impact(uuid, public.operator_service_type);
+drop trigger if exists sync_operator_services on public.operators;
+drop function if exists private.sync_operator_services();
+drop function if exists private.operator_service_active(uuid, public.operator_service_type);
+drop function if exists private.operator_service_auto_state(uuid, public.operator_service_type);
+drop table if exists public.operator_services;
+drop type if exists public.operator_service_state;
+drop type if exists public.operator_service_type;

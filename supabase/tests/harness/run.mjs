@@ -36,6 +36,15 @@ create table storage.objects (id uuid primary key default gen_random_uuid(), buc
 alter table storage.objects enable row level security;
 create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:greatest(array_length(string_to_array(name, '/'), 1) - 1, 0)] $$;
 create schema net; create function net.http_post(url text, body jsonb default null, params jsonb default null, headers jsonb default null, timeout_milliseconds integer default null) returns bigint language sql as 'select 1::bigint';
+create publication supabase_realtime;
+create schema realtime;
+create table realtime.messages (id bigserial primary key, topic text not null, extension text not null default 'broadcast', event text, payload jsonb, private boolean default false, inserted_at timestamptz default now());
+alter table realtime.messages enable row level security;
+create table realtime.sent_log (id bigserial primary key, topic text, event text, payload jsonb, private boolean);
+create function realtime.topic() returns text language sql stable as $$ select nullif(current_setting('realtime.topic', true), '') $$;
+create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void language sql as $$ insert into realtime.sent_log (topic, event, payload, private) values (topic, event, payload, private) $$;
+grant usage on schema realtime to anon, authenticated, service_role;
+grant select on realtime.messages to anon, authenticated;
 create function cron.schedule(text, text, text) returns bigint language sql as 'select 1::bigint';
 create function cron.schedule(text, text) returns bigint language sql as 'select 1::bigint';
 create function cron.unschedule(text) returns boolean language sql as 'select true';
@@ -61,11 +70,15 @@ console.log('applied', files.length, 'migrations');
 
 if (process.env.PROBE) { const r = await db.query(process.env.PROBE); console.log(JSON.stringify(r.rows)); }
 const testDir = path.join(root, 'tests');
-const tests = fs.readdirSync(testDir).filter(f => f.startsWith('onboarding_') && f.endsWith('.sql')).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}))
+const tests = fs.readdirSync(testDir).filter(f => (f.startsWith('onboarding_') || f.startsWith('operator_') || f.startsWith('payments_')) && f.endsWith('.sql')).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}))
   .filter(f => only.length === 0 || only.includes(f));
 let failed = 0;
 for (const t of tests) {
-  const sql = fs.readFileSync(path.join(testDir, t), 'utf8');
+  let sql = fs.readFileSync(path.join(testDir, t), 'utf8');
+  // "-- @include fixtures/x.sql" inlines a shared fixture from tests/.
+  sql = sql.replace(/^-- @include (\S+)\s*$/gm, (_, f) => fs.readFileSync(path.join(testDir, f), 'utf8'));
+  // Legacy onboarding_* tests predate mandatory passenger IDs; operator_* tests run with the real default (ON).
+  await db.exec(`update public.platform_settings set value = '${t.startsWith('onboarding_') ? 'false' : 'true'}' where key = 'passenger_id_required'`);
   try {
     await db.exec(sql);
     console.log('PASS', t);

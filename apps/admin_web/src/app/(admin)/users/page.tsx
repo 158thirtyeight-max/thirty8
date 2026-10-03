@@ -1,3 +1,4 @@
+import { fmtDate } from "@/lib/format-date";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageTitle, Table, Td, Th } from "@/components/ui";
 
@@ -46,7 +47,7 @@ export default async function UsersPage() {
                       .join(", ")
                   : "customer"}
               </Td>
-              <Td>{new Date(p.created_at).toLocaleDateString()}</Td>
+              <Td>{fmtDate(p.created_at)}</Td>
             </tr>
           ))}
         </tbody>

@@ -12,6 +12,16 @@ export interface R2Config {
   publicBaseUrl: string;
 }
 
+/**
+ * Config for private documents. Uses the optional `r2_documents_bucket` secret
+ * (a bucket with public access OFF); falls back to the shared bucket.
+ */
+export async function getR2DocumentConfig(): Promise<R2Config> {
+  const cfg = await getR2Config();
+  const { data } = await serviceRoleClient().rpc("get_app_secret", { p_key: "r2_documents_bucket" });
+  return { ...cfg, bucket: (data as string | null) || cfg.bucket };
+}
+
 export async function getR2Config(): Promise<R2Config> {
   const admin = serviceRoleClient();
   const keys = ["r2_account_id", "r2_access_key_id", "r2_secret_access_key", "r2_bucket", "r2_public_base_url"];
@@ -40,7 +50,16 @@ async function sha256Hex(s: string): Promise<string> {
 const encode = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 
 /** Presigned PUT URL for `key`; the uploader must send the same Content-Type. */
-export async function presignPut(cfg: R2Config, key: string, contentType: string, expiresSeconds = 600): Promise<string> {
+export function presignPut(cfg: R2Config, key: string, contentType: string, expiresSeconds = 600): Promise<string> {
+  return presign(cfg, "PUT", key, expiresSeconds, contentType);
+}
+
+/** Presigned GET URL for a private object. */
+export function presignGet(cfg: R2Config, key: string, expiresSeconds = 600): Promise<string> {
+  return presign(cfg, "GET", key, expiresSeconds);
+}
+
+async function presign(cfg: R2Config, method: "PUT" | "GET", key: string, expiresSeconds: number, contentType?: string): Promise<string> {
   const host = `${cfg.accountId}.r2.cloudflarestorage.com`;
   const region = "auto";
   const now = new Date();
@@ -49,22 +68,17 @@ export async function presignPut(cfg: R2Config, key: string, contentType: string
   const scope = `${date}/${region}/s3/aws4_request`;
   const path = `/${cfg.bucket}/${key.split("/").map(encode).join("/")}`;
 
+  const signedHeaders = contentType ? "content-type;host" : "host";
+  const headerBlock = (contentType ? `content-type:${contentType}\n` : "") + `host:${host}\n`;
   const query: Record<string, string> = {
     "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
     "X-Amz-Credential": `${cfg.accessKeyId}/${scope}`,
     "X-Amz-Date": amzDate,
     "X-Amz-Expires": String(expiresSeconds),
-    "X-Amz-SignedHeaders": "content-type;host",
+    "X-Amz-SignedHeaders": signedHeaders,
   };
   const canonicalQuery = Object.keys(query).sort().map((k) => `${encode(k)}=${encode(query[k])}`).join("&");
-  const canonicalRequest = [
-    "PUT",
-    path,
-    canonicalQuery,
-    `content-type:${contentType}\nhost:${host}\n`,
-    "content-type;host",
-    "UNSIGNED-PAYLOAD",
-  ].join("\n");
+  const canonicalRequest = [method, path, canonicalQuery, headerBlock, signedHeaders, "UNSIGNED-PAYLOAD"].join("\n");
   const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, await sha256Hex(canonicalRequest)].join("\n");
 
   let k: ArrayBuffer = await hmac(enc.encode("AWS4" + cfg.secretAccessKey), date);

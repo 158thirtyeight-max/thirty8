@@ -17,7 +17,6 @@ export type RouteInput = {
   name: string;
   source_city_id: string;
   destination_city_id: string;
-  distance_km: number | null;
   est_duration_min: number | null;
   is_active: boolean;
   stops: RouteStopInput[];
@@ -31,7 +30,7 @@ export async function saveRoute(input: RouteInput): Promise<{ id?: string; error
     p_name: input.name,
     p_source_city_id: input.source_city_id || null,
     p_destination_city_id: input.destination_city_id || null,
-    p_distance_km: input.distance_km,
+    p_distance_km: null, // calculated by the database from the locations
     p_est_duration_min: input.est_duration_min,
     p_is_active: input.is_active,
     p_stops: input.stops,

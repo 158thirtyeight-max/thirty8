@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { profile_id, template_key, data } = await req.json();
+    const { profile_id, template_key, data, push_only } = await req.json();
     if (!profile_id || !template_key) {
       return jsonResponse({ error: "profile_id and template_key are required" }, 400);
     }
@@ -45,13 +45,17 @@ Deno.serve(async (req) => {
     const title = renderTemplate(template.title_template, data ?? {});
     const body = renderTemplate(template.body_template, data ?? {});
 
-    await admin.from("notifications").insert({
-      profile_id,
-      title,
-      body,
-      type: template_key,
-      data: data ?? {},
-    });
+    // push_only: the in-app row was already written (and de-duplicated per event) by the database
+    // (private.notify, used by the financial notifications); only deliver the push here.
+    if (!push_only) {
+      await admin.from("notifications").insert({
+        profile_id,
+        title,
+        body,
+        type: template_key,
+        data: data ?? {},
+      });
+    }
 
     const { data: prefs } = await admin
       .from("notification_preferences")

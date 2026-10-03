@@ -6,7 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/operator_providers.dart';
+import '../../core/services/operator_services.dart';
 import '../../core/supabase_providers.dart';
+import '../onboarding/onboarding_flow_screen.dart';
+import 'business_info_screens.dart';
+import 'my_services_section.dart';
 
 final operatorInsuranceProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, operatorId) async {
   final supabase = ref.watch(supabaseProvider);
@@ -97,11 +101,20 @@ class ProfileTab extends ConsumerWidget {
   Widget build(BuildContext buildContext, WidgetRef ref) {
     final op = context.operator;
     final insuranceAsync = ref.watch(operatorInsuranceProvider(context.operatorId));
+    final theme = Theme.of(buildContext);
+
+    Widget sectionTitle(String text, {Widget? trailing}) => Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.lg, bottom: AppSpacing.sm),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [Text(text, style: theme.textTheme.titleMedium), ?trailing],
+          ),
+        );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           AppCard(
             child: Column(
@@ -110,46 +123,88 @@ class ProfileTab extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: Text(op['name'] as String, style: Theme.of(buildContext).textTheme.titleLarge)),
-                    AppBadge(status: op['status'] as String),
+                    Expanded(child: Text(op['name'] as String, style: theme.textTheme.titleLarge)),
+                    AppBadge(status: context.applicationStatus),
                   ],
                 ),
-                Text(op['legal_name'] as String? ?? '', style: Theme.of(buildContext).textTheme.bodySmall),
-                const SizedBox(height: 8),
-                Text('Business type: ${op['business_type']}'),
-                Text('Contact: ${op['contact_email']} · ${op['contact_phone']}'),
-                Text('Your role: ${context.role}'),
+                if ((op['legal_name'] as String?)?.isNotEmpty ?? false)
+                  Text(op['legal_name'] as String, style: theme.textTheme.bodySmall),
+                const SizedBox(height: AppSpacing.sm),
+                Text('Business type: ${businessTypeLabel(context.businessType)}'),
+                Text('Phone: ${op['contact_phone'] ?? '—'}'),
+                Text('Email: ${op['contact_email'] ?? '—'}'),
+                Text('Your role: ${roleLabel(context.role)}'),
+                if (context.isAdmin && context.isApplicationEditable) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  AppButton(
+                    label: 'Edit Profile',
+                    icon: Icons.edit_outlined,
+                    size: AppButtonSize.small,
+                    variant: AppButtonVariant.outline,
+                    onPressed: () => Navigator.of(buildContext).push(
+                      MaterialPageRoute<void>(builder: (_) => OnboardingFlowScreen(operatorContext: context)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Insurance policies', style: Theme.of(buildContext).textTheme.titleMedium),
-              IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => _addInsurance(buildContext, ref)),
-            ],
+          sectionTitle('My Services'),
+          MyServicesSection(context: context),
+          sectionTitle(
+            'Insurance policies',
+            trailing: IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => _addInsurance(buildContext, ref)),
           ),
           insuranceAsync.when(
             data: (policies) => policies.isEmpty
                 ? const Padding(padding: EdgeInsets.all(8), child: Text('No insurance policies on file yet'))
                 : Column(
                     children: policies
-                        .map((p) => AppCard(
-                              padding: EdgeInsets.zero,
-                              child: AppListItem(
-                                leading: const Icon(Icons.shield_outlined),
-                                title: '${p['insurance_provider']} · ${p['policy_number']}',
-                                subtitle: '${p['valid_from']} → ${p['valid_until']}',
-                                trailing: AppBadge(status: p['status'] as String),
+                        .map((p) => Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: AppCard(
+                                padding: EdgeInsets.zero,
+                                child: AppListItem(
+                                  leading: const Icon(Icons.shield_outlined),
+                                  title: '${p['insurance_provider']} · ${p['policy_number']}',
+                                  subtitle: '${p['valid_from']} → ${p['valid_until']}',
+                                  trailing: AppBadge(status: p['status'] as String),
+                                ),
                               ),
                             ))
                         .toList(),
                   ),
             loading: () => const Padding(padding: EdgeInsets.all(16), child: AppLoadingState()),
-            error: (e, st) => Text('Error: $e'),
+            error: (e, st) => AppErrorState(
+              message: 'Could not load insurance policies.',
+              onRetry: () => ref.invalidate(operatorInsuranceProvider(context.operatorId)),
+            ),
           ),
-          const SizedBox(height: 32),
+          sectionTitle('Business'),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                AppListItem(
+                  leading: const Icon(Icons.description_outlined),
+                  title: 'Business documents',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(buildContext).push(
+                    MaterialPageRoute<void>(builder: (_) => BusinessDocumentsScreen(context: context)),
+                  ),
+                ),
+                AppListItem(
+                  leading: const Icon(Icons.account_balance_outlined),
+                  title: 'Payout details',
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(buildContext).push(
+                    MaterialPageRoute<void>(builder: (_) => PayoutDetailsScreen(context: context)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
           AppButton(
             label: 'Sign out',
             variant: AppButtonVariant.outline,

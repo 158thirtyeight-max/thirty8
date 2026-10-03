@@ -30,6 +30,7 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
   List<Map<String, dynamic>> _droppingPoints = [];
   Map<String, dynamic>? _selectedBoarding;
   Map<String, dynamic>? _selectedDropping;
+  String? _journey;
 
   @override
   void initState() {
@@ -43,6 +44,11 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
     // returns null once the trip is closed to booking.
     final res = await supabase.rpc('get_trip_points', params: {'p_trip_id': widget.trip['trip_id'] as String});
     final points = res as Map<String, dynamic>?;
+    final fromName = points?['source_name'] as String?;
+    final toName = points?['destination_name'] as String?;
+    final journey = (fromName != null && toName != null)
+        ? '$fromName → $toName${points?['direction'] == 'return' ? ' (return journey)' : ''}'
+        : null;
     final boarding = (points?['boarding'] as List?) ?? const [];
     final dropping = (points?['dropping'] as List?) ?? const [];
 
@@ -61,6 +67,7 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
     }
 
     setState(() {
+      _journey = journey;
       _boardingPoints = boardingList;
       _droppingPoints = droppingList;
       _selectedBoarding = _boardingPoints.isEmpty
@@ -129,6 +136,10 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
                           Row(children: [const Icon(Icons.star, size: 16, color: AppColors.accent), Text(' ${trip['operator_rating']}')]),
                         ],
                         const SizedBox(height: AppSpacing.sm),
+                        if (_journey != null) ...[
+                          Text(_journey!, style: Theme.of(context).textTheme.bodyMedium),
+                          const SizedBox(height: AppSpacing.xs),
+                        ],
                         Text((trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.bodySmall),
                         if (amenities.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.sm),

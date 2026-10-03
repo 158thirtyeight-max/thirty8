@@ -27,7 +27,7 @@ export default async function DashboardPage() {
     supabase.from("operators").select("id", { count: "exact", head: true }),
     supabase.from("bookings").select("id", { count: "exact", head: true }),
     supabase.from("cargo_shipments").select("id", { count: "exact", head: true }),
-    supabase.from("refunds").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("refunds").select("id", { count: "exact", head: true }).in("status", ["requested", "approved", "submitted_to_provider"]),
     supabase.from("payments").select("amount_cents").eq("status", "captured"),
   ]);
 

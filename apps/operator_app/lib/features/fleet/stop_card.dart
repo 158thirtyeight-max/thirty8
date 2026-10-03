@@ -25,6 +25,7 @@ class StopCard extends StatelessWidget {
     required this.onChanged,
     this.onRemove,
     this.dragIndex,
+    this.showTimes = true,
   });
 
   final RouteStop stop;
@@ -47,6 +48,9 @@ class StopCard extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
   final int? dragIndex;
+
+  /// The legacy route screen edits clock times here; the timeline editor schedules stops on a ruler instead.
+  final bool showTimes;
 
   Map<String, dynamic>? get _current => locations.cast<Map<String, dynamic>?>().firstWhere((l) => l!['id'] == stop.cityId, orElse: () => null);
 
@@ -152,6 +156,7 @@ class StopCard extends StatelessWidget {
                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
                 ),
               ),
+            if (showTimes)
             Wrap(
               spacing: AppSpacing.sm,
               children: [

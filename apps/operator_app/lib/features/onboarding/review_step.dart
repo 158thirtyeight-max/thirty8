@@ -18,6 +18,21 @@ String _v(Object? v) {
   return s.isEmpty ? '-' : s;
 }
 
+/// Wizard step (0 business, 1 KYC & documents, 2 bank, 3 mandate) that fixes a
+/// missing item, based on the section the server reports for it.
+int _stepForMissing(String label, List? items) {
+  if (label.toLowerCase().contains('mandate')) return 3;
+  final item = items?.cast<Map>().firstWhere((i) => i['label'] == label, orElse: () => const {});
+  switch (item?['section']) {
+    case 'business':
+      return 0;
+    case 'bank':
+      return 2;
+    default:
+      return 1; // kyc and identity / GST documents
+  }
+}
+
 /// Step 5 — full summary of everything entered, with the completeness
 /// percentage and an explicit list of what is still missing.
 class ReviewStep extends ConsumerWidget {
@@ -91,14 +106,23 @@ class ReviewStep extends ConsumerWidget {
                 if (missing.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.sm),
                   for (final item in missing)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded, size: 16, color: theme.colorScheme.error),
-                          const SizedBox(width: AppSpacing.xs),
-                          Expanded(child: Text('Missing: $item', style: TextStyle(color: theme.colorScheme.error))),
-                        ],
+                    InkWell(
+                      onTap: () => onEditStep(_stepForMissing(item, c['items'] as List?)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 16, color: theme.colorScheme.error),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Text(
+                                'Missing: $item',
+                                style: TextStyle(color: theme.colorScheme.error, decoration: TextDecoration.underline),
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.error),
+                          ],
+                        ),
                       ),
                     ),
                 ] else ...[

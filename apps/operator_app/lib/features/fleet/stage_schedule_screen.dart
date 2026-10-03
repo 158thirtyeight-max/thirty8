@@ -1,7 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../core/supabase_providers.dart';
 import 'fleet_providers.dart';
@@ -11,7 +10,7 @@ import 'schedule_model.dart';
 
 /// Stage F — schedule of this bus's service: departure (arrival is derived from
 /// the route), operating days, when booking opens and closes, and the boarding
-/// cut-off. For an active bus it can also generate dated trips.
+/// cut-off.
 class StageScheduleScreen extends ConsumerStatefulWidget {
   const StageScheduleScreen({super.key, required this.operatorId, required this.bus});
 
@@ -26,7 +25,6 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
   bool _loaded = false;
   bool _saving = false;
   bool _dirty = false;
-  bool _generating = false;
   String? _error;
   List<String> _serverErrors = const [];
 
@@ -38,15 +36,10 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
   int _boardingCutoff = 10;
   bool _configured = false;
 
-  DateTime _genFrom = DateTime.now().add(const Duration(days: 1));
-  DateTime _genTo = DateTime.now().add(const Duration(days: 14));
-
   bool get _editable {
     final lifecycle = widget.bus['lifecycle_status'] as String?;
     return widget.bus['is_legacy'] == true || const ['draft', 'changes_requested', 'approved', 'active'].contains(lifecycle);
   }
-
-  bool get _canGenerate => widget.bus['lifecycle_status'] == 'active' && widget.bus['status'] == 'active';
 
   void _load(Map<String, dynamic> service) {
     if (_loaded) return;
@@ -120,47 +113,6 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
     }
   }
 
-  Future<void> _generate() async {
-    if (_dirty) {
-      setState(() => _error = 'Save the schedule first.');
-      return;
-    }
-    setState(() {
-      _generating = true;
-      _error = null;
-    });
-    try {
-      final iso = DateFormat('yyyy-MM-dd');
-      final n = await ref.read(supabaseProvider).rpc('generate_bus_trips', params: {
-        'p_bus_id': widget.bus['id'],
-        'p_from': iso.format(_genFrom),
-        'p_to': iso.format(_genTo),
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$n new trip${n == 1 ? '' : 's'} created.')));
-      }
-    } catch (e) {
-      setState(() => _error = 'Could not generate trips. Check that the bus and its service are active.');
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
-  }
-
-  Future<void> _pickRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: DateTimeRange(start: _genFrom, end: _genTo),
-    );
-    if (picked != null) {
-      setState(() {
-        _genFrom = picked.start;
-        _genTo = picked.end.difference(picked.start).inDays > 90 ? picked.start.add(const Duration(days: 90)) : picked.end;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final routeAsync = ref.watch(busRouteProvider(widget.bus['id'] as String));
@@ -198,9 +150,6 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
         onChanged: edit ? (v) => setState(() { onChanged(v!); _dirty = true; }) : null,
       );
     }
-
-    final tripCount = tripDatesInRange(_genFrom, _genTo, _days).length;
-    final fmt = DateFormat('dd MMM');
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -270,23 +219,6 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
                     if (_dirty) await _save();
                     if (context.mounted && _serverErrors.isEmpty) Navigator.of(context).pop();
                   },
-          ),
-        ],
-        if (_canGenerate) ...[
-          const SizedBox(height: AppSpacing.lg),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Create trips', style: theme.textTheme.titleSmall),
-                const SizedBox(height: AppSpacing.xs),
-                Text('Trips are created on your operating days and open for booking per the rules above.', style: theme.textTheme.bodySmall),
-                const SizedBox(height: AppSpacing.sm),
-                OutlinedButton(onPressed: _generating ? null : _pickRange, child: Text('${fmt.format(_genFrom)} – ${fmt.format(_genTo)}  ·  $tripCount trips')),
-                const SizedBox(height: AppSpacing.sm),
-                AppButton(label: 'Generate trips', loading: _generating, onPressed: (_generating || tripCount == 0) ? null : _generate),
-              ],
-            ),
           ),
         ],
       ],

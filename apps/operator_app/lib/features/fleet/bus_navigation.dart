@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'bus_setup_screen.dart';
+import 'create_trips_screen.dart';
 import 'fleet_status.dart';
 import 'stage_review_screen.dart';
 
@@ -22,9 +23,16 @@ Future<void> openBusAction(
       return nav.push(MaterialPageRoute(builder: (_) => StageReviewScreen(operatorId: operatorId, busId: busId)));
     case BusAction.manageFare:
     case BusAction.manageSchedule:
-      final key = action == BusAction.manageFare ? 'fare' : 'schedule';
+    case BusAction.configureRoute:
+      final key = switch (action) {
+        BusAction.manageFare => 'fare',
+        BusAction.manageSchedule => 'schedule',
+        _ => 'route',
+      };
       final stage = busSetupStages.firstWhere((s) => s.key == key);
       return nav.push(MaterialPageRoute(builder: (c) => stage.builder(c, operatorId, bus)));
+    case BusAction.createTrips:
+      return nav.push(MaterialPageRoute(builder: (_) => CreateTripsScreen(operatorId: operatorId, bus: bus)));
     case BusAction.continueSetup:
     case BusAction.viewDetails:
       return nav.push(MaterialPageRoute(builder: (_) => BusSetupScreen(operatorId: operatorId, busId: busId)));

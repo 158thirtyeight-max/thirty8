@@ -35,3 +35,17 @@ enabled = true
 
 [realtime]
 enabled = true
+
+# Live verify_jwt flags (kept in sync with the deployed project). Webhook-style functions
+# authenticate themselves (HMAC signature / shared secret), everything else requires a JWT.
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.gps-ingest]
+verify_jwt = false
+
+[functions.reconcile-payments]
+verify_jwt = false

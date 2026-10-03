@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
-import '../onboarding/validators.dart';
+import 'bus_photo_service.dart';
 
 /// All buses of an operator, newest first. Still used by the service form.
 final busesProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, operatorId) async {
@@ -69,15 +69,30 @@ class FleetRepository {
     String? storagePath;
     String? fileName;
     if (file != null) {
-      final path = file.path;
-      if (path == null) throw Exception('Could not read the selected file');
-      final problem = validateDocumentFile(fileName: file.name, sizeBytes: (await file.length()) ?? 0);
-      if (problem != null) throw Exception(problem);
-      final ext = file.name.split('.').last.toLowerCase();
-      storagePath = '$operatorId/$busId/${docType}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await _db.storage.from('bus-documents').upload(storagePath, File(path));
+      if (((await file.length()) ?? 0) == 0) throw Exception('File is empty');
+      // On Android the picker often returns a content:// URI with no local
+      // path, so fall back to copying the bytes into a temp file.
+      var path = file.path;
+      File? temp;
+      if (path == null) {
+        try {
+          temp = File('${Directory.systemTemp.path}/pick_${DateTime.now().microsecondsSinceEpoch}_${file.name}');
+          await temp.writeAsBytes(await file.readAsBytes());
+          path = temp.path;
+        } catch (_) {
+          throw Exception('Could not read the selected file. Please pick it again.');
+        }
+      }
+      try {
+        // Documents are stored privately in Cloudflare R2 (presigned upload).
+        storagePath = await BusPhotoService(_db).uploadDocument(busId: busId, docType: docType, localPath: path);
+      } finally {
+        try {
+          await temp?.delete();
+        } catch (_) {}
+      }
       fileName = file.name;
-    } else if (existing == null) {
+    } else if (existing == null || existing['status'] == 'rejected') {
       throw Exception('Please attach the document file');
     }
 
@@ -86,6 +101,7 @@ class FleetRepository {
       'doc_number': (docNumber == null || docNumber.trim().isEmpty) ? null : docNumber.trim(),
       'issue_date': d(issueDate),
       'expiry_date': d(expiryDate),
+      if (storagePath != null) 'bucket': 'r2',
       'file_path': ?storagePath,
       'file_name': ?fileName,
     };
@@ -97,12 +113,7 @@ class FleetRepository {
         await _db.from('bus_documents').update(data).eq('id', existing['id'] as String);
       }
     } catch (_) {
-      // The file is stored but its record was not: remove it so nothing is left orphaned.
-      if (storagePath != null) {
-        try {
-          await _db.storage.from('bus-documents').remove([storagePath]);
-        } catch (_) {}
-      }
+      // The R2 object stays unreferenced (an orphan); the record was not saved.
       rethrow;
     }
 

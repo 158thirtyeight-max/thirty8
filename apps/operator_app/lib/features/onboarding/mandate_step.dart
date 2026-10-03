@@ -9,7 +9,7 @@ import 'mandate_pdf.dart';
 import 'onboarding_providers.dart';
 import 'validators.dart';
 
-/// Step 4 — payment mandate: generate the (placeholder) form pre-filled with
+/// Step 4 — payment mandate: generate the form pre-filled with
 /// the operator's details, sign & stamp it offline, upload the scan, and
 /// track its verification status.
 class MandateStep extends ConsumerStatefulWidget {
@@ -77,12 +77,26 @@ class _MandateStepState extends ConsumerState<MandateStep> {
     }
   }
 
-  Future<void> _upload(Map<String, dynamic>? existing) async {
+  PlatformFile? _picked;
+  String? _pickedProblem;
+
+  Future<void> _pick() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: allowedDocumentExtensions,
     );
     if (file == null) return;
+    final size = (await file.length()) ?? 0;
+    setState(() {
+      _picked = file;
+      _pickedProblem = validateDocumentFile(fileName: file.name, sizeBytes: size);
+      _error = null;
+    });
+  }
+
+  Future<void> _upload(Map<String, dynamic>? existing) async {
+    final file = _picked;
+    if (file == null || _pickedProblem != null) return;
     setState(() {
       _uploading = true;
       _error = null;
@@ -96,6 +110,7 @@ class _MandateStepState extends ConsumerState<MandateStep> {
           );
       ref.invalidate(operatorMandateProvider(widget.operatorId));
       ref.invalidate(operatorCompletenessProvider(widget.operatorId));
+      if (mounted) setState(() => _picked = null);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -166,10 +181,6 @@ class _MandateStepState extends ConsumerState<MandateStep> {
                   '5. We verify it during review.',
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'This is a placeholder template until the official mandate form is provided.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
-                ),
                 if (!bankReady) ...[
                   const SizedBox(height: AppSpacing.sm),
                   const Text('Complete your bank details first so the form can be pre-filled.'),
@@ -210,8 +221,50 @@ class _MandateStepState extends ConsumerState<MandateStep> {
               status: mandate?['status'] as String?,
               rejectionReason: mandate?['rejection_reason'] as String?,
               busy: _uploading,
-              onPick: () => _upload(mandate),
+              onPick: _pick,
             ),
+          if (_picked != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.description_outlined, size: 18),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(child: Text(_picked!.name, overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Icon(
+                        _pickedProblem == null ? Icons.check_circle : Icons.error_outline,
+                        size: 18,
+                        color: _pickedProblem == null ? Colors.green : theme.colorScheme.error,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          _pickedProblem ?? 'File approved - ready to upload',
+                          style: TextStyle(color: _pickedProblem == null ? Colors.green.shade700 : theme.colorScheme.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  AppButton(
+                    label: 'Upload this file',
+                    icon: Icons.cloud_upload_outlined,
+                    size: AppButtonSize.small,
+                    loading: _uploading,
+                    onPressed: (_pickedProblem != null || busy) ? null : () => _upload(mandate),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(_error!, style: TextStyle(color: theme.colorScheme.error)),

@@ -25,10 +25,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
     setState(() => _busy = true);
     try {
-      final result = await ref.read(supabaseProvider).rpc('verify_ticket_qr', params: {'p_qr_payload': code});
+      final result = await ref.read(supabaseProvider).rpc('verify_ticket_qr', params: {'p_qr_payload': code}) as Map;
+      // A rejected scan (already used, not confirmed, ...) comes back as ok:false and is kept in the audit trail.
+      final ok = result['ok'] == true;
       setState(() {
-        _lastSuccess = true;
-        _lastMessage = 'Boarded: ${result['passenger_name']} · Seat ${result['seat_code']}';
+        _lastSuccess = ok;
+        _lastMessage = ok
+            ? 'Boarded: ${result['passenger_name']} · Seat ${result['seat_code']}'
+            : (result['message'] as String? ?? 'This ticket cannot be used for boarding.');
       });
     } catch (e) {
       setState(() {

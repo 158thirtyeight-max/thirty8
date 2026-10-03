@@ -1,3 +1,4 @@
+import { fmtDateTime } from "@/lib/format-date";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +21,7 @@ const DOC_LABELS: Record<string, string> = {
 const DAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function fmt(ts?: string | null) {
-  return ts ? new Date(ts).toLocaleString() : "—";
+  return ts ? fmtDateTime(ts) : "—";
 }
 function rupees(cents: number) {
   return `₹${(cents / 100).toLocaleString("en-IN", { minimumFractionDigits: cents % 100 ? 2 : 0 })}`;
@@ -35,17 +36,42 @@ function clock(baseTime: string, offsetMin: number | null) {
 }
 
 // Bus photos live in Cloudflare R2; the database stores object keys.
-function PhotoGrid({ keys, alt }: { keys?: string[] | null; alt: string }) {
-  const base = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "").replace(/\/+$/, "");
+const R2_BASE = (process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "").replace(/\/+$/, "");
+
+async function r2Exists(key: string): Promise<boolean> {
+  if (!R2_BASE) return false;
+  try {
+    const res = await fetch(`${R2_BASE}/${key}`, { method: "HEAD", cache: "no-store" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function PhotoGrid({ keys, alt, found }: { keys?: string[] | null; alt: string; found: Record<string, boolean> }) {
   if (!keys || keys.length === 0) return <p className="text-text-tertiary">Not provided</p>;
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-3">
       {keys.map((k) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img key={k} src={`${base}/${k}`} alt={alt} className="max-h-32 rounded-md" />
+        <div key={k}>
+          <a href={`${R2_BASE}/${k}`} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`${R2_BASE}/${k}`} alt={alt} className="max-h-32 rounded-md" />
+          </a>
+          <p className={`mt-1 break-all text-[10px] ${found[k] ? "text-success" : "text-error"}`}>
+            {found[k] ? "In R2" : "Not found in R2"} · {k.split("/").pop()}
+          </p>
+        </div>
       ))}
     </div>
   );
+}
+
+function isImage(name?: string | null) {
+  return /\.(jpe?g|png|webp|gif)$/i.test(name ?? "");
+}
+function isPdf(name?: string | null) {
+  return /\.pdf$/i.test(name ?? "");
 }
 
 function Field({ label, value }: { label: string; value: any }) {
@@ -148,14 +174,33 @@ export default async function BusDetailPage({
     return p?.full_name || p?.email || pid.slice(0, 8);
   };
 
-  // Document files are private; give the admin short-lived signed links.
+  // Document files are private (R2, or Supabase Storage for older uploads); give the admin short-lived signed links.
   const signed: Record<string, string> = {};
   await Promise.all(
     (documents ?? []).map(async (d: any) => {
+      if (d.bucket === "r2") {
+        const { data } = await supabase.functions.invoke("r2-document-url", { body: { doc_id: d.id } });
+        if (data?.url) signed[d.id] = data.url;
+        return;
+      }
       const { data } = await supabase.storage.from(d.bucket ?? "bus-documents").createSignedUrl(d.file_path, 600);
       if (data?.signedUrl) signed[d.id] = data.signedUrl;
     }),
   );
+
+  const { data: requirements } = await supabase
+    .from("document_requirements")
+    .select("doc_type, label, required")
+    .eq("scope", "bus")
+    .eq("active", true)
+    .order("sort_order");
+  const uploadedTypes = new Set((documents ?? []).map((d: any) => d.doc_type));
+  const notUploaded = (requirements ?? []).filter((r: any) => !uploadedTypes.has(r.doc_type));
+  const verifiedCount = (documents ?? []).filter((d: any) => d.status === "verified").length;
+
+  const photoKeys: string[] = [...(bus.exterior_photo_keys ?? []), ...(bus.interior_photo_keys ?? [])];
+  const found: Record<string, boolean> = {};
+  await Promise.all(photoKeys.map(async (k) => (found[k] = await r2Exists(k))));
 
   const state: string = bus.is_legacy ? (bus.legacy_migration_status ? `legacy_${bus.legacy_migration_status}` : "legacy") : bus.lifecycle_status;
   const inReview = bus.is_legacy ? ["submitted", "under_review"].includes(bus.legacy_migration_status) : ["submitted", "under_review"].includes(bus.lifecycle_status);
@@ -280,14 +325,18 @@ export default async function BusDetailPage({
           <Field label="Capacity" value={bus.total_seats} />
         </Card>
         <Card title={`Exterior photographs (${(bus.exterior_photo_keys ?? []).length})`}>
-          <PhotoGrid keys={bus.exterior_photo_keys} alt="Exterior" />
+          <PhotoGrid keys={bus.exterior_photo_keys} alt="Exterior" found={found} />
         </Card>
         <Card title={`Interior photographs (${(bus.interior_photo_keys ?? []).length})`}>
-          <PhotoGrid keys={bus.interior_photo_keys} alt="Interior" />
+          <PhotoGrid keys={bus.interior_photo_keys} alt="Interior" found={found} />
         </Card>
       </div>
 
-      <SectionHeader title="Documents" />
+      <SectionHeader title={`Documents (${verifiedCount}/${documents?.length ?? 0} verified)`} />
+      <p className="mb-3 text-xs text-text-tertiary">
+        Photographs and documents (RC, insurance, permit…) are stored in Cloudflare R2; documents are private and opened through 10-minute signed links. Older uploads may still
+        be in Supabase Storage.
+      </p>
       <Table>
         <thead>
           <tr>
@@ -301,6 +350,7 @@ export default async function BusDetailPage({
         <tbody>
           {documents?.map((d: any) => {
             const expired = d.expiry_date && new Date(d.expiry_date) < new Date(new Date().toDateString());
+            const url = signed[d.id];
             return (
               <tr key={d.id}>
                 <Td>{DOC_LABELS[d.doc_type] ?? d.doc_type}</Td>
@@ -312,14 +362,29 @@ export default async function BusDetailPage({
                   {expired && <div className="text-xs text-error">Expired</div>}
                 </Td>
                 <Td>
-                  {signed[d.id] ? (
-                    <a href={signed[d.id]} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                      {d.file_name ?? "View"}
-                    </a>
+                  {url ? (
+                    <>
+                      <a href={url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                        {d.file_name ?? "Open file"}
+                      </a>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-text-secondary">Preview</summary>
+                        {isImage(d.file_name ?? d.file_path) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={url} alt={d.file_name ?? "Document"} className="mt-2 max-h-96 rounded-md border border-border" />
+                        ) : isPdf(d.file_name ?? d.file_path) ? (
+                          <iframe src={url} title={d.file_name ?? "Document"} className="mt-2 h-96 w-72 rounded-md border border-border" />
+                        ) : (
+                          <p className="mt-2 text-xs text-text-tertiary">No inline preview for this file type; use the link above.</p>
+                        )}
+                      </details>
+                    </>
                   ) : (
-                    d.file_name ?? "—"
+                    <span className="text-error">File missing in storage{d.file_name ? ` (${d.file_name})` : ""}</span>
                   )}
-                  <div className="text-xs text-text-tertiary">v{d.version}</div>
+                  <div className="text-xs text-text-tertiary">
+                    v{d.version} · {d.bucket === "r2" ? "Cloudflare R2" : `Supabase Storage / ${d.bucket ?? "bus-documents"}`}
+                  </div>
                 </Td>
                 <Td>
                   <Badge status={d.status} />
@@ -332,9 +397,20 @@ export default async function BusDetailPage({
               </tr>
             );
           })}
+          {notUploaded.map((r: any) => (
+            <tr key={r.doc_type}>
+              <Td>{r.label ?? DOC_LABELS[r.doc_type] ?? r.doc_type}</Td>
+              <Td>—</Td>
+              <Td>
+                <span className={r.required ? "text-error" : "text-text-tertiary"}>Not uploaded{r.required ? " (required)" : " (optional)"}</span>
+              </Td>
+              <Td>—</Td>
+              <Td>—</Td>
+            </tr>
+          ))}
         </tbody>
       </Table>
-      {!documents?.length && <EmptyState message="No documents uploaded." />}
+      {!documents?.length && !notUploaded.length && <EmptyState message="No documents uploaded." />}
 
       <div className="mt-8">
         <SectionHeader title="Seat layout" />

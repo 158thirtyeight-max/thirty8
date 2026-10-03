@@ -104,6 +104,27 @@ export async function saveRow(id: string, formData: FormData) {
   back({ notice: `${name} saved.` });
 }
 
+/** Renumbers both order columns 1..N, keeping the arrangement currently shown (ties fall back to name). */
+export async function renumberOrders() {
+  const { supabase } = await requirePlatformAdmin();
+  const { data, error } = await supabase.from("locations").select("id, main_route_order, pickup_order, name");
+  if (error) back({ error: explain(error.message) });
+  const all = data ?? [];
+  const byOrder = (key: "main_route_order" | "pickup_order") =>
+    [...all].sort((a, b) => (a[key] ?? 1e9) - (b[key] ?? 1e9) || a.name.localeCompare(b.name));
+  const main = new Map(byOrder("main_route_order").map((l, i) => [l.id, i + 1]));
+  const points = new Map(byOrder("pickup_order").map((l, i) => [l.id, i + 1]));
+  for (const l of all) {
+    const { error: e } = await supabase
+      .from("locations")
+      .update({ main_route_order: main.get(l.id), pickup_order: points.get(l.id), drop_order: points.get(l.id) })
+      .eq("id", l.id);
+    if (e) back({ error: explain(e.message) });
+  }
+  refresh();
+  back({ notice: `Renumbered ${all.length} locations 1 to ${all.length}.` });
+}
+
 /** Disable / enable the whole location. Existing routes and bookings keep working; it is only hidden from new use. */
 export async function setLocationActive(id: string, active: boolean) {
   const { supabase } = await requirePlatformAdmin();

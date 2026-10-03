@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge, Button, EmptyState, PageTitle, SectionHeader } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { ColumnToggle, type ToggleColumn } from "./column-toggle";
-import { createLocation, saveRow, setLocationActive } from "./actions";
+import { createLocation, renumberOrders, saveRow, setLocationActive } from "./actions";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -104,6 +104,12 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
       <p className="text-xs text-text-tertiary">
         Showing {rows.length} of {all?.length ?? 0} locations.
       </p>
+
+      <form action={renumberOrders} className="flex justify-end">
+        <Button type="submit" variant="outline">
+          Renumber order
+        </Button>
+      </form>
 
       <ColumnToggle columns={COLUMNS}>
         <div className="overflow-x-auto rounded-lg border border-border bg-surface">

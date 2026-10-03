@@ -174,7 +174,11 @@ class _DirectTripCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text((trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            '${(trip['bus_type'] as String? ?? '').replaceAll('_', ' ').toUpperCase()}'
+            '${trip['direction'] == 'return' ? ' · RETURN JOURNEY' : ''}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [

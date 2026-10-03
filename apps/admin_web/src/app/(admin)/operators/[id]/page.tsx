@@ -1,3 +1,4 @@
+import { fmtDateTime } from "@/lib/format-date";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -34,7 +35,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function fmt(ts?: string | null) {
-  return ts ? new Date(ts).toLocaleString() : "—";
+  return ts ? fmtDateTime(ts) : "—";
 }
 
 /** Verify / reject controls for one document; a reason is required for reject and enforced by the RPC. */

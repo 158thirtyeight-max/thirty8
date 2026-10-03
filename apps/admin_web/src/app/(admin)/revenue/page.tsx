@@ -1,3 +1,4 @@
+import { fmtDate } from "@/lib/format-date";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageTitle, SectionHeader, StatCard, Table, Td, Th } from "@/components/ui";
 
@@ -40,7 +41,7 @@ export default async function RevenuePage() {
         <tbody>
           {dailyRows.map(([day, amount]) => (
             <tr key={day}>
-              <Td>{new Date(day).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</Td>
+              <Td>{fmtDate(day)}</Td>
               <Td>₹{(amount / 100).toLocaleString("en-IN")}</Td>
             </tr>
           ))}

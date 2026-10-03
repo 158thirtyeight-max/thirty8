@@ -98,8 +98,8 @@ do $$
 declare v_id uuid := (select id from t_ops where tag = 'A'); r jsonb;
 begin
   r := public.operator_completeness(v_id);
-  if not (r -> 'missing') ? 'Cancelled cheque' then
-    raise exception 'FAIL 4a: cancelled cheque should be missing: %', r -> 'missing';
+  if (r -> 'missing') ? 'Cancelled cheque' then
+    raise exception 'FAIL 4a: cancelled cheque is no longer required: %', r -> 'missing';
   end if;
   if (r -> 'missing') ? 'Signed & stamped payment mandate' then
     raise exception 'FAIL 4b: mandate uploaded but reported missing';
@@ -108,9 +108,6 @@ begin
     raise exception 'FAIL 4c: saved bank fields reported missing';
   end if;
 
-  insert into public.operator_documents (operator_id, doc_type, file_path) values (v_id, 'cancelled_cheque', v_id || '/c.pdf');
-  r := public.operator_completeness(v_id);
-  if r -> 'missing' ? 'Cancelled cheque' then raise exception 'FAIL 4d: cheque uploaded but still missing'; end if;
 end $$;
 
 -- ---- 5. a rejected mandate counts as missing --------------------------

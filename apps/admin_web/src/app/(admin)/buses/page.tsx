@@ -1,3 +1,4 @@
+import { fmtDate } from "@/lib/format-date";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, EmptyState, PageTitle, Table, Td, Th } from "@/components/ui";
@@ -23,7 +24,7 @@ export default async function BusesPage({ searchParams }: { searchParams: Promis
   let query = supabase
     .from("buses")
     .select(
-      "id, name, registration_number, bus_type, total_seats, lifecycle_status, status, is_legacy, legacy_migration_status, submitted_at, approved_at, operators(id, name)",
+      "id, name, registration_number, bus_type, total_seats, lifecycle_status, status, is_legacy, legacy_migration_status, submitted_at, approved_at, operators(id, name), bus_documents(status)",
     )
     .order("submitted_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
@@ -41,6 +42,11 @@ export default async function BusesPage({ searchParams }: { searchParams: Promis
   return (
     <div>
       <PageTitle title="Buses" subtitle="Review buses, migrate legacy buses, and manage their availability" />
+      <p className="-mt-3 mb-4 text-sm">
+        <Link href="/route-approvals" className="text-primary hover:underline">
+          Route approval requests →
+        </Link>
+      </p>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((x) => (
@@ -70,7 +76,9 @@ export default async function BusesPage({ searchParams }: { searchParams: Promis
             <Th>Operator</Th>
             <Th>Type</Th>
             <Th>State</Th>
+            <Th>Documents</Th>
             <Th>Submitted</Th>
+            <Th></Th>
           </tr>
         </thead>
         <tbody>
@@ -101,7 +109,19 @@ export default async function BusesPage({ searchParams }: { searchParams: Promis
                   {b.legacy_migration_status && <Badge status={b.legacy_migration_status} />}
                 </div>
               </Td>
-              <Td>{b.submitted_at ? new Date(b.submitted_at).toLocaleDateString() : "—"}</Td>
+              <Td>
+                {(() => {
+                  const docs: { status: string }[] = b.bus_documents ?? [];
+                  const verified = docs.filter((d) => d.status === "verified").length;
+                  return docs.length ? `${verified}/${docs.length} verified` : "None uploaded";
+                })()}
+              </Td>
+              <Td>{b.submitted_at ? fmtDate(b.submitted_at) : "—"}</Td>
+              <Td>
+                <Link href={`/buses/${b.id}`} className="rounded-md border border-border px-2 py-1 text-xs text-primary hover:border-primary">
+                  Review →
+                </Link>
+              </Td>
             </tr>
           ))}
         </tbody>

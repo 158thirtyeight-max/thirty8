@@ -20,6 +20,13 @@ Each phase has a script that runs in a single transaction and rolls back. A fail
 | `onboarding_hardening_phase4.sql` | operators cannot write routes/points/services/trips/fares directly; set_trip_status; ownership guards |
 | `onboarding_hardening_phase5.sql` | public read lockdown: anon/customer/operator/admin reads, get_trip_points, own-booking visibility |
 | `onboarding_e2e.sql` | legacy regression (existing demo bus) + full new-operator journey through a customer booking |
+| `operator_services.sql` | `operator_services`: derived states, selecting never grants approval, owner-only, disable keeps data and blocks new buses/trips |
+| `operator_trip_list.sql` | `list_operator_trips`: buckets, seat counts from `trip_seats` (held/sold/blocked), expired holds free, isolation |
+| `operator_seat_inventory.sql` | real-time seat inventory: `rev`, counter trigger, double booking, hold expiry/renewal, stale payment-failure guard, block/release, seat map, Broadcast payloads/policies |
+| `operator_passenger_boarding.sql` | passenger identity (encrypted, masked), manifest search/filters, verify→board state machine, exceptions, correction, audited reveal, QR rejections persisted |
+| `operator_finance.sql` | one financial calculation (gross vs collected vs refunds initiated/completed), commission, settlements (partial/failed/paid rules, clawback, no double settlement), earnings reads, access control |
+| `operator_booking_analytics.sql` | per-trip booking stats and cumulative booking trend |
+| `operator_gps.sql` | GPS devices/assignments, ingest (service role only), source priority, stale/offline never live, passenger-assisted aggregation + consent, retention, device health |
 
 ## Run
 
@@ -30,3 +37,4 @@ for f in supabase/tests/onboarding_*.sql; do psql "$DB_URL" -v ON_ERROR_STOP=1 -
 ```
 
 Without Supabase, using the bundled in-memory Postgres harness: see `harness/run.mjs`.
+It also runs `operator_*.sql`; those tests start with `-- @include fixtures/trip_fixture.sql` (a bus, route, fares and one trip for two operators and two customers). The harness stubs `realtime.send` into `realtime.sent_log`, so Broadcast payloads can be asserted; real Realtime delivery and true two-session concurrency must be checked on a Supabase branch.

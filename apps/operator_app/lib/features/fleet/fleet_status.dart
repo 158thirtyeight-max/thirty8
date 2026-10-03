@@ -50,7 +50,7 @@ bool isAwaitingReview(Map<String, dynamic> bus) {
   return s == 'submitted' || s == 'under_review' || s == 'legacy_submitted' || s == 'legacy_under_review';
 }
 
-enum BusAction { continueSetup, submit, activate, deactivate, viewReason, manageFare, manageSchedule, viewDetails }
+enum BusAction { continueSetup, submit, activate, deactivate, viewReason, manageFare, manageSchedule, configureRoute, createTrips, viewDetails }
 
 extension BusActionX on BusAction {
   String get label => switch (this) {
@@ -61,6 +61,8 @@ extension BusActionX on BusAction {
         BusAction.viewReason => 'View Reason',
         BusAction.manageFare => 'Manage Fare',
         BusAction.manageSchedule => 'Manage Schedule',
+        BusAction.configureRoute => 'Configure Route',
+        BusAction.createTrips => 'Create Trips',
         BusAction.viewDetails => 'View Details',
       };
 }
@@ -114,7 +116,7 @@ List<BusAction> busActions(Map<String, dynamic> bus, Map<String, dynamic>? compl
     case 'approved':
       return [BusAction.activate, BusAction.viewDetails];
     case 'active':
-      return [BusAction.viewDetails, BusAction.manageFare, BusAction.manageSchedule, BusAction.deactivate];
+      return [BusAction.viewDetails, BusAction.createTrips, BusAction.manageFare, BusAction.manageSchedule, BusAction.deactivate];
     case 'legacy':
       return complete ? [BusAction.submit, BusAction.continueSetup] : [BusAction.continueSetup, BusAction.manageFare, BusAction.manageSchedule];
     case 'suspended':

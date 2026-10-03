@@ -1,3 +1,4 @@
+import { fmtDateTime } from "@/lib/format-date";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageTitle, Table, Td, Th } from "@/components/ui";
 
@@ -34,7 +35,7 @@ export default async function AuditLogsPage() {
         <tbody>
           {logs?.map((l) => (
             <tr key={l.id}>
-              <Td>{new Date(l.created_at).toLocaleString()}</Td>
+              <Td>{fmtDateTime(l.created_at)}</Td>
               <Td>{l.profiles?.full_name ?? l.profiles?.email ?? "system"}</Td>
               <Td>{l.action}</Td>
               <Td className="font-mono text-xs">

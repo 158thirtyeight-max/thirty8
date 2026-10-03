@@ -1,3 +1,4 @@
+import { fmtDateTime } from "@/lib/format-date";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, EmptyState, PageTitle, Table, Td, Th } from "@/components/ui";
 
@@ -47,7 +48,7 @@ export default async function ShipmentsPage() {
               <Td>
                 <Badge status={s.status} />
               </Td>
-              <Td>{new Date(s.created_at).toLocaleString()}</Td>
+              <Td>{fmtDateTime(s.created_at)}</Td>
             </tr>
           ))}
         </tbody>

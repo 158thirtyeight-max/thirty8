@@ -5,11 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'bus_validators.dart';
 import 'fleet_providers.dart';
 import 'fleet_status.dart';
+import 'rejected_documents_banner.dart';
 import 'stage_basic_screen.dart';
 import 'stage_documents_screen.dart';
 import 'stage_fare_screen.dart';
 import 'stage_review_screen.dart';
-import 'stage_route_screen.dart';
+import 'route_revision_screen.dart';
 import 'stage_schedule_screen.dart';
 import 'stage_seat_layout_screen.dart';
 
@@ -65,9 +66,9 @@ final List<BusSetupStage> busSetupStages = [
     key: 'route',
     section: 'route',
     title: 'D · Route & stops',
-    subtitle: 'Origin, destination, boarding / dropping points, timings',
+    subtitle: 'Start, destination, stops, timings, one way or round trip',
     icon: Icons.alt_route,
-    builder: (context, operatorId, bus) => StageRouteScreen(operatorId: operatorId, bus: bus),
+    builder: (context, operatorId, bus) => RouteRevisionScreen(operatorId: operatorId, bus: bus),
   ),
   BusSetupStage(
     key: 'fare',
@@ -135,6 +136,7 @@ class BusSetupScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.xs),
                       LinearProgressIndicator(value: busPercent(comp) / 100),
                     ],
+                    RejectedDocumentsBanner(operatorId: operatorId, bus: bus),
                   ],
                 ),
               ),

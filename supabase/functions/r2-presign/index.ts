@@ -1,21 +1,29 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { handleOptions, jsonResponse } from "../_shared/cors.ts";
 import { callerClient, serviceRoleClient } from "../_shared/supabase.ts";
-import { getR2Config, presignPut } from "../_shared/r2.ts";
+import { getR2Config, getR2DocumentConfig, presignPut } from "../_shared/r2.ts";
 
-// Issues a short-lived presigned R2 upload URL for one bus photograph. The
+// Issues a short-lived presigned R2 upload URL for one bus photograph, or (when
+// `doc_type` is sent instead of `side`) for one private bus document. The
 // caller must be staff of the bus's operator (or a platform admin); the object
 // key is generated here, never taken from the client. The app uploads the file
 // straight to R2 with a PUT, then stores the returned `key` on the bus row.
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const DOC_EXT: Record<string, string> = { "application/pdf": "pdf", "image/webp": "webp" };
 
 Deno.serve(async (req) => {
   const preflight = handleOptions(req);
   if (preflight) return preflight;
 
   try {
-    const { bus_id, side, content_type } = await req.json();
-    if (typeof bus_id !== "string" || !["exterior", "interior"].includes(side) || !EXT[content_type]) {
+    const { bus_id, side, content_type, doc_type } = await req.json();
+    const isDoc = typeof doc_type === "string";
+    if (typeof bus_id !== "string") return jsonResponse({ error: "bus_id is required" }, 400);
+    if (isDoc) {
+      if (!/^[a-z_]{2,30}$/.test(doc_type) || !DOC_EXT[content_type]) {
+        return jsonResponse({ error: "doc_type and content_type (pdf|jpeg|png) are required" }, 400);
+      }
+    } else if (!["exterior", "interior"].includes(side) || !EXT[content_type]) {
       return jsonResponse({ error: "bus_id, side (exterior|interior) and content_type (jpeg|png|webp) are required" }, 400);
     }
 
@@ -32,7 +40,15 @@ Deno.serve(async (req) => {
       ["platform_admin", "platform_support"].includes(r.role) ||
       (r.operator_id === bus.operator_id && ["operator_admin", "operator_staff"].includes(r.role))
     );
-    if (!allowed) return jsonResponse({ error: "Not allowed to upload photos for this bus" }, 403);
+    if (!allowed) return jsonResponse({ error: "Not allowed to upload files for this bus" }, 403);
+
+    if (isDoc) {
+      const { data: req_ } = await admin.from("document_requirements").select("doc_type").eq("scope", "bus").eq("doc_type", doc_type).maybeSingle();
+      if (!req_) return jsonResponse({ error: "Unknown document type" }, 400);
+      const docCfg = await getR2DocumentConfig();
+      const docKey = `bus-documents/${bus.operator_id}/${bus.id}/${doc_type}_${crypto.randomUUID()}.${DOC_EXT[content_type]}`;
+      return jsonResponse({ upload_url: await presignPut(docCfg, docKey, content_type), key: docKey });
+    }
 
     const cfg = await getR2Config();
     const key = `bus-photos/${bus.operator_id}/${bus.id}/${side}_${crypto.randomUUID()}.${EXT[content_type]}`;

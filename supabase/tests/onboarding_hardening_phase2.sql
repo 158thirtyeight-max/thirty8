@@ -231,7 +231,7 @@ begin
     raise exception 'FAIL 2c: seat booked on wrong amount';
   end if;
   if not exists (select 1 from public.refunds rf join public.payments p on p.id = rf.payment_id
-                 where p.razorpay_payment_id = 'pay_amt' and rf.status = 'pending' and rf.amount_cents = v_order.amount_cents - 100) then
+                 where p.razorpay_payment_id = 'pay_amt' and rf.status = 'requested' and rf.amount_cents = v_order.amount_cents - 100) then
     raise exception 'FAIL 2d: pending refund for the amount actually paid not created';
   end if;
 end $$;
@@ -273,7 +273,7 @@ begin
   if (select status from public.bookings where id = o3.orderable_id) <> 'expired' then raise exception 'FAIL 3c: expired booking was revived'; end if;
   if (select count(*) from public.booking_items where status = 'confirmed') <> 1 then raise exception 'FAIL 3d: seat is confirmed more than once'; end if;
   if not exists (select 1 from public.refunds rf join public.payments p on p.id = rf.payment_id
-                 where p.razorpay_payment_id = 'pay_late' and rf.status = 'pending' and rf.amount_cents = o3.amount_cents) then
+                 where p.razorpay_payment_id = 'pay_late' and rf.status = 'requested' and rf.amount_cents = o3.amount_cents) then
     raise exception 'FAIL 3e: refund for the late payment not queued';
   end if;
 end $$;

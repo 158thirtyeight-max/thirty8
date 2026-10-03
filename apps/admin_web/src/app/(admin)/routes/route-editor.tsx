@@ -22,7 +22,6 @@ export default function RouteEditor({ cities, mains, route }: { cities: City[]; 
   const [name, setName] = useState<string>(route?.name ?? "");
   const [source, setSource] = useState<string>(route?.source_city_id ?? "");
   const [dest, setDest] = useState<string>(route?.destination_city_id ?? "");
-  const [distance, setDistance] = useState<string>(route?.distance_km?.toString() ?? "");
   const [duration, setDuration] = useState<string>(route?.est_duration_min?.toString() ?? "");
   const [active, setActive] = useState<boolean>(route?.is_active ?? true);
   const [stops, setStops] = useState<Stop[]>(
@@ -75,7 +74,6 @@ export default function RouteEditor({ cities, mains, route }: { cities: City[]; 
         name,
         source_city_id: source,
         destination_city_id: dest,
-        distance_km: num(distance),
         est_duration_min: num(duration),
         is_active: active,
         stops: payloadStops,
@@ -120,10 +118,6 @@ export default function RouteEditor({ cities, mains, route }: { cities: City[]; 
               <option key={c.id} value={c.id}>{c.location_code ? `${c.name} (${c.location_code})` : c.name}</option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          Distance (km, optional)
-          <input type="number" min="0" step="0.1" value={distance} onChange={(e) => setDistance(e.target.value)} className={inputClass} />
         </label>
         <label className="text-sm">
           Journey duration (minutes)

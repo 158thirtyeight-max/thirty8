@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/operator_providers.dart';
-import 'bus_setup_screen.dart';
+import '../bus_ops/route_summary.dart';
+import 'bus_navigation.dart';
+import 'fleet_status.dart';
 import 'bus_status_card.dart';
 import 'fleet_providers.dart';
 import 'stage_basic_screen.dart';
@@ -19,11 +21,37 @@ class MyBusesScreen extends ConsumerWidget {
   Widget build(BuildContext buildContext, WidgetRef ref) {
     final busesAsync = ref.watch(busesProvider(context.operatorId));
 
-    Future<void> openSetup(String busId) async {
-      await Navigator.of(buildContext).push(
-        MaterialPageRoute(builder: (_) => BusSetupScreen(operatorId: context.operatorId, busId: busId)),
+    /// After a bus is registered, offer the next logical step instead of dropping the operator on the list.
+    Future<void> offerConfigureRoute(String busId) async {
+      final bus = await ref.read(busProvider(busId).future);
+      if (!buildContext.mounted) return;
+      final go = await showModalBottomSheet<bool>(
+        context: buildContext,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Bus added', style: Theme.of(sheet).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.xs),
+                const Text('Next, configure its route so you can schedule trips.'),
+                const SizedBox(height: AppSpacing.md),
+                AppButton(label: 'Configure Route', expand: true, onPressed: () => Navigator.pop(sheet, true)),
+                const SizedBox(height: AppSpacing.xs),
+                AppButton(label: 'Later', expand: true, variant: AppButtonVariant.ghost, onPressed: () => Navigator.pop(sheet, false)),
+              ],
+            ),
+          ),
+        ),
       );
-      ref.invalidate(busesProvider(context.operatorId));
+      if (go == true && buildContext.mounted) {
+        await openBusAction(buildContext, operatorId: context.operatorId, bus: bus, action: BusAction.configureRoute);
+        ref.invalidate(busesProvider(context.operatorId));
+        ref.invalidate(operatorRouteSummariesProvider(context.operatorId));
+      }
     }
 
     return Scaffold(
@@ -44,6 +72,7 @@ class MyBusesScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                     child: BusStatusCard(
                       operatorId: context.operatorId,
+                      operatorContext: context,
                       bus: buses[i],
                       onChanged: () => ref.invalidate(busesProvider(context.operatorId)),
                     ),
@@ -63,7 +92,7 @@ class MyBusesScreen extends ConsumerWidget {
                   MaterialPageRoute(builder: (_) => StageBasicScreen(operatorId: context.operatorId)),
                 );
                 ref.invalidate(busesProvider(context.operatorId));
-                if (busId != null) await openSetup(busId);
+                if (busId != null) await offerConfigureRoute(busId);
               },
               icon: const Icon(Icons.add),
               label: const Text('Add New Bus'),

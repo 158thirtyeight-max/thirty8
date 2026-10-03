@@ -1,3 +1,4 @@
+import { fmtDate } from "@/lib/format-date";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Badge, EmptyState, PageTitle, Table, Td, Th } from "@/components/ui";
@@ -73,7 +74,7 @@ export default async function OperatorsPage({ searchParams }: { searchParams: Pr
               <Td>
                 <Badge status={op.status} />
               </Td>
-              <Td>{op.submitted_at ? new Date(op.submitted_at).toLocaleDateString() : "—"}</Td>
+              <Td>{op.submitted_at ? fmtDate(op.submitted_at) : "—"}</Td>
             </tr>
           ))}
         </tbody>

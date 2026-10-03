@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,7 +150,6 @@ class OnboardingRepository {
     required String holder,
     required String bankName,
     required String branch,
-    required String bankAddress,
     required String accountNumber,
     required String ifsc,
     required String micr,
@@ -161,12 +161,21 @@ class OnboardingRepository {
       'account_holder_name': n(holder),
       'bank_name': n(bankName),
       'branch_name': n(branch),
-      'bank_address': n(bankAddress),
       'account_number': n(Validators.normalizeDigits(accountNumber)),
       'ifsc': n(Validators.normalizeIfsc(ifsc)),
       'micr': n(Validators.normalizeDigits(micr)),
       'account_type': accountType,
     });
+  }
+
+  /// Reads the picked file's bytes. On Android the picker often returns a
+  /// content:// URI with no local path, so never rely on `file.path`.
+  Future<Uint8List> _readBytes(PlatformFile file) async {
+    try {
+      return await file.readAsBytes();
+    } catch (_) {
+      throw Exception('Could not read the selected file. Please pick it again.');
+    }
   }
 
   /// Uploads the signed & stamped mandate. Replacing resets verification
@@ -177,14 +186,13 @@ class OnboardingRepository {
     required String templateVersion,
     String? existingPath,
   }) async {
-    final path = file.path;
-    if (path == null) throw Exception('Could not read the selected file');
-    final problem = validateDocumentFile(fileName: file.name, sizeBytes: (await file.length()) ?? 0);
+    final bytes = await _readBytes(file);
+    final problem = validateDocumentFile(fileName: file.name, sizeBytes: bytes.length);
     if (problem != null) throw Exception(problem);
 
     final ext = file.name.split('.').last.toLowerCase();
     final storagePath = '$operatorId/payment_mandate_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await _db.storage.from(operatorDocumentsBucket).upload(storagePath, File(path));
+    await _db.storage.from(operatorDocumentsBucket).uploadBinary(storagePath, bytes);
     await _db.from('operator_payment_mandates').upsert({
       'operator_id': operatorId,
       'file_path': storagePath,
@@ -218,14 +226,13 @@ class OnboardingRepository {
     String? existingDocId,
     String? existingPath,
   }) async {
-    final path = file.path;
-    if (path == null) throw Exception('Could not read the selected file');
-    final problem = validateDocumentFile(fileName: file.name, sizeBytes: (await file.length()) ?? 0);
+    final bytes = await _readBytes(file);
+    final problem = validateDocumentFile(fileName: file.name, sizeBytes: bytes.length);
     if (problem != null) throw Exception(problem);
 
     final ext = file.name.split('.').last.toLowerCase();
     final storagePath = '$operatorId/${docType}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await _db.storage.from(operatorDocumentsBucket).upload(storagePath, File(path));
+    await _db.storage.from(operatorDocumentsBucket).uploadBinary(storagePath, bytes);
 
     if (existingDocId != null && docType != 'other_registration') {
       await _db.from('operator_documents').update({

@@ -25,7 +25,6 @@ class StageRouteScreen extends ConsumerStatefulWidget {
 class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
   String? _sourceId;
   String? _destId;
-  final _distance = TextEditingController();
   final List<RouteStop> _stops = [
     RouteStop(name: '', isBoarding: true),
     RouteStop(name: '', isDropping: true),
@@ -42,12 +41,6 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
     return widget.bus['is_legacy'] == true || lifecycle == 'draft' || lifecycle == 'changes_requested';
   }
 
-  @override
-  void dispose() {
-    _distance.dispose();
-    super.dispose();
-  }
-
   void _load(Map<String, dynamic> data, List<Map<String, dynamic>> cities) {
     if (_loaded) return;
     _loaded = true;
@@ -57,7 +50,6 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
 
     _sourceId = route['source_city_id'] as String?;
     _destId = route['destination_city_id'] as String?;
-    _distance.text = route['distance_km']?.toString() ?? '';
     _days = {for (final d in (service['operating_days'] as List? ?? const [1, 2, 3, 4, 5, 6, 7])) (d as num).toInt()};
 
     final dep = (service['default_departure_time'] as String? ?? '06:00:00').split(':');
@@ -88,7 +80,6 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
       _dirty = true;
       _sourceId = t['source_city_id'] as String?;
       _destId = t['destination_city_id'] as String?;
-      _distance.text = t['distance_km']?.toString() ?? '';
       _stops
         ..clear()
         ..addAll([
@@ -160,7 +151,7 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
         'p_bus_id': widget.bus['id'],
         'p_source_city_id': _sourceId,
         'p_destination_city_id': _destId,
-        'p_distance_km': double.tryParse(_distance.text.trim()),
+        'p_distance_km': null, // calculated by the database from the locations
         'p_departure_time': '${(dep ~/ 60).toString().padLeft(2, '0')}:${(dep % 60).toString().padLeft(2, '0')}:00',
         'p_duration_min': journeyDurationMin(_stops),
         'p_operating_days': (_days.toList()..sort()),
@@ -259,14 +250,6 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
         cityDropdown('Origin city', _sourceId, true),
         const SizedBox(height: AppSpacing.md),
         cityDropdown('Destination city', _destId, false),
-        const SizedBox(height: AppSpacing.md),
-        AppTextField(
-          controller: _distance,
-          label: 'Distance in km (optional)',
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          enabled: edit,
-          onChanged: (_) => _dirty = true,
-        ),
         const SizedBox(height: AppSpacing.md),
         Text('Operating days', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.xs),
