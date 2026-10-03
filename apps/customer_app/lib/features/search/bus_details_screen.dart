@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/supabase_providers.dart';
 import '../booking/seat_selection_screen.dart';
+import 'journey_timeline.dart';
 
 class BusDetailsScreen extends ConsumerStatefulWidget {
   const BusDetailsScreen({super.key, required this.trip});
@@ -94,6 +95,12 @@ class _BusDetailsScreenState extends ConsumerState<BusDetailsScreen> {
                       ],
                     ),
                   ),
+                  if (trip['departure_at'] != null && trip['arrival_at'] != null)
+                    JourneyTimeline(
+                      tripId: trip['trip_id'] as String,
+                      departureAt: trip['departure_at'] as String,
+                      arrivalAt: trip['arrival_at'] as String,
+                    ),
                   const SizedBox(height: AppSpacing.md),
                   Text('Boarding point', style: Theme.of(context).textTheme.titleSmall),
                   ..._boardingPoints.map((bp) => RadioListTile<Map<String, dynamic>>(

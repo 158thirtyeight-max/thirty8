@@ -5,7 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../../core/supabase_providers.dart';
 import 'fleet_list_screen.dart';
+import 'route_form_screen.dart' show citiesProvider;
 import 'routes_list_screen.dart';
+import 'stops/stop_schedule.dart';
+import 'stops/stops_editor.dart';
 
 /// Schedule setup for a recurring service. The operator defines timing and
 /// operating days ONCE; the backend generates every departure inside the
@@ -36,6 +39,8 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
   final _cutoffController = TextEditingController();
   bool _loading = false;
   String? _error;
+  List<StopDraft> _stops = [];
+  bool _stopsDirty = false;
 
   Map<String, dynamic>? _preview; // from preview_service_schedule (backend = source of truth)
   Map<String, dynamic>? _overview; // from get_service_schedule_overview (edit mode)
@@ -63,6 +68,7 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       if (cutoff != null) _cutoffController.text = '$cutoff';
       _loadOverview();
       _loadPreview();
+      _loadStops();
     }
   }
 
@@ -72,6 +78,28 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
     _closeController.dispose();
     _cutoffController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStops() async {
+    try {
+      final rows = await ref
+          .read(supabaseProvider)
+          .from('bus_service_stops')
+          .select('*, cities(name)')
+          .eq('service_id', widget.service!['id'] as String)
+          .order('sequence_no');
+      if (!mounted) return;
+      setState(() => _stops = (rows as List<dynamic>).map((r) => StopDraft.fromRow(r as Map<String, dynamic>)).toList());
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not load stops: $e');
+    }
+  }
+
+  /// Cities a stop may use: everything except the route's origin and destination.
+  List<Map<String, dynamic>> _stopCities(List<Map<String, dynamic>> cities, List<Map<String, dynamic>> routes) {
+    final route = routes.where((r) => r['id'] == _routeId).firstOrNull;
+    final excluded = {route?['source_city_id'], route?['destination_city_id']};
+    return cities.where((c) => !excluded.contains(c['id'])).toList();
   }
 
   String _timeString(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
@@ -159,6 +187,11 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
       setState(() => _error = 'Booking close / boarding cut-off exceed the platform maximum ($maxClose / $maxCutoff minutes)');
       return;
     }
+    final stopsError = validateStops(_stops, _durationMinutes);
+    if (stopsError != null) {
+      setState(() => _error = stopsError);
+      return;
+    }
     final fareRupees = int.tryParse(_fareController.text.trim());
     if (!_editing && (fareRupees == null || fareRupees <= 0)) {
       setState(() => _error = 'Enter a fare in rupees');
@@ -183,8 +216,10 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
         if (canSetRules) 'boarding_cutoff_minutes': cutoff,
       };
 
+      String serviceId;
       if (_editing) {
-        await supabase.from('bus_services').update(fields).eq('id', widget.service!['id'] as String);
+        serviceId = widget.service!['id'] as String;
+        await supabase.from('bus_services').update(fields).eq('id', serviceId);
       } else {
         // The fare rule is applied to every seat type on the bus's active layout.
         final seatRows = await supabase
@@ -210,11 +245,24 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
             })
             .select('id')
             .single();
+        serviceId = inserted['id'] as String;
 
         // Inserting the fare rules is what publishes the first departures (backend trigger).
         await supabase.from('fare_rules').insert(seatTypes
             .map((t) => {'service_id': inserted['id'], 'seat_type': t, 'base_fare_cents': fareRupees! * 100})
             .toList());
+      }
+      if (_stopsDirty || (!_editing && _stops.isNotEmpty)) {
+        try {
+          await supabase.rpc('save_service_stops', params: {'p_service_id': serviceId, 'p_stops': _stops.map((s) => s.toRpc()).toList()});
+        } catch (e) {
+          // The schedule itself is saved; don't let a retry create a duplicate service.
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Schedule saved, but stops were not: $e. Reopen the schedule to add them again.')));
+            Navigator.of(context).pop(true);
+          }
+          return;
+        }
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -407,6 +455,25 @@ class _ServiceFormScreenState extends ConsumerState<ServiceFormScreen> {
                     _kv('Journey duration', _durationLabel()),
                   ],
                 ),
+              ),
+
+              // Route & stops
+              _section(
+                'Route & stops',
+                ref.watch(citiesProvider).when(
+                      data: (cities) => StopsEditor(
+                        stops: _stops,
+                        cities: _stopCities(cities, routesAsync.value ?? const []),
+                        totalMinutes: _durationMinutes,
+                        departureMinuteOfDay: _departureTime.hour * 60 + _departureTime.minute,
+                        onChanged: (stops) => setState(() {
+                          _stops = stops;
+                          _stopsDirty = true;
+                        }),
+                      ),
+                      loading: () => const LinearProgressIndicator(),
+                      error: (e, st) => Text('Could not load cities: $e'),
+                    ),
               ),
 
               // 2. Operating days
