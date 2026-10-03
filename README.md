@@ -26,3 +26,12 @@ supabase link --project-ref xdrthrdwdfzhzhqkhnnf
 supabase db push          # apply migrations
 supabase functions deploy # deploy edge functions
 ```
+
+## Recurring schedules & booking window
+
+Operators set a recurring schedule once (`bus_services`: times + `operating_days`). The backend
+(`private.run_rolling_schedule_generation`, pg_cron hourly + 00:05 IST) creates the missing
+departures (`bus_trips` + `trip_seats`) inside each route's admin-controlled booking window
+(`scheduling_settings`, `route_booking_windows`; Admin → Booking windows). Customers only see
+departures the backend says are inside the window (`search_trips`, seat-hold guard).
+Tests: `supabase/tests/recurring_schedule_engine_test.sql` (needs the demo seed).
