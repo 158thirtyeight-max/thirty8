@@ -15,4 +15,5 @@ export 'src/components/app_button.dart';
 export 'src/components/app_card.dart';
 export 'src/components/app_list_item.dart';
 export 'src/components/app_states.dart';
+export 'src/components/app_step_indicator.dart';
 export 'src/components/app_text_field.dart';
