@@ -77,14 +77,13 @@ class SeatTile extends StatelessWidget {
 }
 
 class _Stepper extends StatelessWidget {
-  const _Stepper({required this.label, required this.value, required this.onChanged, this.min = 0, this.max = 99, this.hint});
+  const _Stepper({required this.label, required this.value, required this.onChanged, this.min = 0, this.max = 99});
 
   final String label;
   final int value;
   final ValueChanged<int> onChanged;
   final int min;
   final int max;
-  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +96,6 @@ class _Stepper extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: AppTypography.bodyLarge(_text(context))),
-                if (hint != null) Text(hint!, style: AppTypography.caption(_muted(context))),
               ],
             ),
           ),
@@ -473,11 +471,9 @@ class _SeatMapStepState extends State<SeatMapStep> {
           child: Row(
             children: [
               Expanded(
-                child: AppButton(
-                  label: 'Add row',
-                  variant: AppButtonVariant.outline,
-                  size: AppButtonSize.small,
-                  icon: Icons.add,
+                child: OutlinedButton.icon(
+                  label: Text('Add row'),
+                  icon: Icon(Icons.add, size: 18),
                   onPressed: d.rows < 40
                       ? () => _change(() {
                             d.rows += 1;
@@ -490,11 +486,9 @@ class _SeatMapStepState extends State<SeatMapStep> {
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: AppButton(
-                  label: 'Remove row',
-                  variant: AppButtonVariant.outline,
-                  size: AppButtonSize.small,
-                  icon: Icons.remove,
+                child: OutlinedButton.icon(
+                  label: Text('Remove row'),
+                  icon: Icon(Icons.remove, size: 18),
                   onPressed: d.rows > 1
                       ? () => _change(() {
                             for (var c = 1; c <= d.columns; c++) {
