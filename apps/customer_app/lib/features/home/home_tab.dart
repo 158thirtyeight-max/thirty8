@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
 import '../search/city.dart';
@@ -32,11 +33,37 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   DateTime _date = DateTime.now();
 
   Future<void> _pickDate() async {
+    if (_source == null || _destination == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose where you’re leaving from and going to first')),
+      );
+      return;
+    }
+    // The backend owns the booking window (admin-configured per route); the
+    // app only asks how far ahead this journey can be booked.
+    DateTime lastDate;
+    try {
+      final res = await Supabase.instance.client.rpc('get_max_booking_date', params: {
+        'p_source_city_id': _source!.id,
+        'p_destination_city_id': _destination!.id,
+      });
+      lastDate = DateTime.parse(res as String);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load available dates. Please try again.')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final today = DateTime.now();
+    final firstDate = DateTime(today.year, today.month, today.day);
+    final initial = _date.isBefore(firstDate) ? firstDate : (_date.isAfter(lastDate) ? lastDate : _date);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 120)),
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate.isBefore(firstDate) ? firstDate : lastDate,
     );
     if (picked != null) setState(() => _date = picked);
   }

@@ -68,7 +68,8 @@ class AppChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = selected ? AppColors.primary : AppColors.primaryLight.withValues(alpha: 0.25);
-    final foreground = selected ? Colors.white : AppColors.primaryDark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = selected ? Colors.white : (isDark ? AppColors.primaryLight : AppColors.primaryDark);
 
     return Material(
       color: Colors.transparent,

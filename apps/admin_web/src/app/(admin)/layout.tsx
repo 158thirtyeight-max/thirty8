@@ -14,6 +14,8 @@ const OPS_ITEMS = [
   { href: "/shipments", label: "Shipments" },
   { href: "/trips", label: "Trips" },
   { href: "/gps-devices", label: "GPS devices" },
+  { href: "/scheduling/booking-windows", label: "Booking windows" },
+  { href: "/scheduling/departures", label: "Departures" },
   { href: "/revenue", label: "Revenue" },
   { href: "/audit-logs", label: "Audit logs" },
   { href: "/settings/document-requirements", label: "Requirements" },
