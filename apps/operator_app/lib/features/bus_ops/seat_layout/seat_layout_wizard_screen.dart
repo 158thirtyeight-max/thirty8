@@ -13,10 +13,13 @@ import 'wizard_steps.dart';
 /// moving between steps never loses configuration, and is also persisted as
 /// a draft layout for "Save & continue later".
 class SeatLayoutWizardScreen extends ConsumerStatefulWidget {
-  const SeatLayoutWizardScreen({super.key, required this.busId, this.initialCapacity = 36});
+  const SeatLayoutWizardScreen({super.key, required this.busId, this.initialCapacity = 36, this.store});
 
   final String busId;
   final int initialCapacity;
+
+  /// Overrides the Supabase-backed store (demo and tests).
+  final SeatLayoutStore? store;
 
   @override
   ConsumerState<SeatLayoutWizardScreen> createState() => _SeatLayoutWizardScreenState();
@@ -29,7 +32,7 @@ class _SeatLayoutWizardScreenState extends ConsumerState<SeatLayoutWizardScreen>
   bool _saving = false;
   String? _error;
 
-  SeatLayoutRepository get _repo => SeatLayoutRepository(ref.read(supabaseProvider));
+  SeatLayoutStore get _repo => widget.store ?? SeatLayoutRepository(ref.read(supabaseProvider));
 
   @override
   void initState() {
