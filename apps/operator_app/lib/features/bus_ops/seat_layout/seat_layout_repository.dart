@@ -3,11 +3,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'numbering.dart';
 import 'seat_layout_model.dart';
 
+/// Storage used by the wizard; lets the UI run against fake data (see
+/// demo/seat_layout_demo.dart) as well as Supabase.
+abstract class SeatLayoutStore {
+  Future<SeatLayoutDraft> load(String busId, {required int fallbackCapacity});
+  Future<void> saveDraft(String busId, SeatLayoutDraft d);
+  Future<void> save(String busId, SeatLayoutDraft d);
+}
+
 /// Loads and saves seat layouts. No schema changes: wizard config lives in
 /// `bus_layouts.layout_json` (v2), and only passenger seats become `seats`
 /// rows. Saving always creates a new layout version so trips that already
 /// reference old `seats` rows (trip_seats FK) are never touched.
-class SeatLayoutRepository {
+class SeatLayoutRepository implements SeatLayoutStore {
   SeatLayoutRepository(this._db);
   final SupabaseClient _db;
 
@@ -24,6 +32,7 @@ class SeatLayoutRepository {
   }
 
   /// Draft if one exists, else the active layout, else a fresh draft.
+  @override
   Future<SeatLayoutDraft> load(String busId, {required int fallbackCapacity}) async {
     final draft = await _draftRow(busId);
     if (draft != null) {
@@ -48,6 +57,7 @@ class SeatLayoutRepository {
     return SeatLayoutDraft(capacity: fallbackCapacity);
   }
 
+  @override
   Future<void> saveDraft(String busId, SeatLayoutDraft d) async {
     final json = d.toJson(draft: true);
     final existing = await _draftRow(busId);
@@ -65,6 +75,7 @@ class SeatLayoutRepository {
     }
   }
 
+  @override
   Future<void> save(String busId, SeatLayoutDraft d) async {
     final labels = computeLabels(d.cells, d.numbering, manualLabels: d.manualLabels);
     final previous = await _db
