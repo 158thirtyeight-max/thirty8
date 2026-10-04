@@ -42,11 +42,8 @@ extension JourneySchedule on JourneyDraft {
   /// Whole days after the departure day that an offset falls on (0 = same day).
   int dayOf(int offset) => ((startMin ?? 0) + offset) ~/ minutesPerDay;
 
-  /// "07:05", or "02:00 (+1 day)" past midnight.
-  String timeLabel(int offset) {
-    final d = dayOf(offset);
-    return '${formatClock(clockOf(offset))}${d > 0 ? ' (+$d day${d > 1 ? 's' : ''})' : ''}';
-  }
+  /// "07:05 (Today)", "02:00 (Next Day)" past midnight, "02:00 (+2 days)" after that.
+  String timeLabel(int offset) => '${formatClock(clockOf(offset))} (${dayTag(dayOf(offset))})';
 
   int? arrivalAt(int i) {
     if (i == 0) return 0;

@@ -2,6 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
 import 'operating_days_picker.dart';
+import 'setup_continue.dart';
 import 'route_model.dart';
 import 'stop_card.dart';
 import 'stop_schedule.dart';
@@ -60,10 +61,7 @@ class JourneyEditor extends StatelessWidget {
 
   Future<void> _pickEndpoint(BuildContext context, {required bool start}) async {
     final current = start ? draft.startMin : draft.endMin;
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: current == null ? const TimeOfDay(hour: 6, minute: 0) : TimeOfDay(hour: current ~/ 60, minute: current % 60),
-    );
+    final picked = await pick24HourTime(context, minutes: current);
     if (picked == null) return;
     final m = picked.hour * 60 + picked.minute;
     start ? draft.setStart(m) : draft.setEnd(m);
@@ -88,7 +86,7 @@ class JourneyEditor extends StatelessWidget {
     final end = draft.endMin;
     if (end == null) return 'Choose';
     final days = (draft.startMin! + draft.durationMin!) ~/ minutesPerDay;
-    return '${formatClock(end)}${days > 0 ? ' (+$days day${days > 1 ? 's' : ''})' : ''}';
+    return '${formatClock(end)} (${dayTag(days)})';
   }
 
   // ---- stop editor (bottom sheet) ----------------------------------------------------------------
@@ -144,7 +142,7 @@ class JourneyEditor extends StatelessWidget {
                             setSheet(() {});
                           },
                     label: Text(first
-                        ? 'Departure time: ${draft.startMin == null ? 'choose' : formatClock(draft.startMin)}'
+                        ? 'Departure time: ${draft.startMin == null ? 'choose' : draft.timeLabel(0)}'
                         : 'Arrival time: ${_endLabel()}'),
                   )
                 else
@@ -282,7 +280,7 @@ class JourneyEditor extends StatelessWidget {
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.schedule),
                 onPressed: enabled ? () => _pickEndpoint(context, start: true) : null,
-                label: Text('Departs ${draft.startMin == null ? '--:--' : formatClock(draft.startMin)}'),
+                label: Text('Departs ${draft.startMin == null ? '--:--' : draft.timeLabel(0)}'),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -316,7 +314,7 @@ class JourneyEditor extends StatelessWidget {
 
   String _detail(int i) {
     final n = _stops.length;
-    if (i == 0) return draft.startMin == null ? 'Set the departure time' : 'Departs ${formatClock(draft.startMin)}';
+    if (i == 0) return draft.startMin == null ? 'Set the departure time' : 'Departs ${draft.timeLabel(0)}';
     if (i == n - 1) return (draft.startMin == null || draft.durationMin == null) ? 'Set the arrival time' : 'Arrives ${draft.timeLabel(draft.durationMin!)}';
     final a = _stops[i].arrivalOffset;
     if (!draft.hasWindow || a == null) return 'Time not scheduled yet';

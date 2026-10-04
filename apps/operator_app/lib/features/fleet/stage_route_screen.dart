@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/supabase_providers.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 import 'operating_days_picker.dart';
 import 'route_model.dart';
 import 'stop_card.dart';
@@ -106,10 +107,7 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
 
   Future<void> _pickTime(RouteStop stop, {required bool arrival}) async {
     final current = arrival ? stop.arrivalMin : stop.departureMin;
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: current == null ? const TimeOfDay(hour: 6, minute: 0) : TimeOfDay(hour: current ~/ 60, minute: current % 60),
-    );
+    final picked = await pick24HourTime(context, minutes: current);
     if (picked == null) return;
     setState(() {
       _dirty = true;
@@ -361,17 +359,12 @@ class _StageRouteScreenState extends ConsumerState<StageRouteScreen> {
         ],
         if (_editable) ...[
           const SizedBox(height: AppSpacing.md),
-          AppButton(label: 'Save route', expand: true, loading: _saving, onPressed: (_saving || !_dirty) ? null : _save),
-          AppButton(
-            label: 'Save & continue later',
-            variant: AppButtonVariant.ghost,
-            expand: true,
-            onPressed: _saving
-                ? null
-                : () async {
-                    if (_dirty) await _save();
-                    if (context.mounted && _serverErrors.isEmpty) Navigator.of(context).pop();
-                  },
+          SetupContinueButton(
+            loading: _saving,
+            onPressed: () async {
+              if (_dirty) await _save();
+              if (context.mounted && _serverErrors.isEmpty && _error == null) Navigator.of(context).pop(kSetupContinue);
+            },
           ),
         ],
       ],

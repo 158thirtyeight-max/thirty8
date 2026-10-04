@@ -6,6 +6,7 @@ import 'bus_validators.dart';
 import 'fleet_providers.dart';
 import 'fleet_status.dart';
 import 'rejected_documents_banner.dart';
+import 'setup_continue.dart';
 import 'stage_basic_screen.dart';
 import 'stage_documents_screen.dart';
 import 'stage_fare_screen.dart';
@@ -101,6 +102,23 @@ class BusSetupScreen extends ConsumerWidget {
   final String operatorId;
   final String busId;
 
+  /// Opens a section; while the operator keeps choosing "Save & Continue to Next Section" the next one opens.
+  Future<void> _runFrom(BuildContext context, WidgetRef ref, int index, Map<String, dynamic> bus) async {
+    var i = index;
+    var current = bus;
+    while (i < busSetupStages.length) {
+      final stage = busSetupStages[i];
+      final result = await Navigator.of(context).push<Object?>(
+        MaterialPageRoute(builder: (c) => stage.builder(c, operatorId, current)),
+      );
+      ref.invalidate(busProvider(busId));
+      ref.invalidate(busCompletenessProvider(busId));
+      if (result != kSetupContinue || !context.mounted) return;
+      current = await ref.read(busProvider(busId).future);
+      i++;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final busAsync = ref.watch(busProvider(busId));
@@ -158,13 +176,7 @@ class BusSetupScreen extends ConsumerWidget {
                               states[stage.section]!.ok ? Icons.check_circle : Icons.warning_amber_rounded,
                               color: states[stage.section]!.ok ? AppColors.success : AppColors.warning,
                             ),
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(builder: (c) => stage.builder(c, operatorId, bus)),
-                        );
-                        ref.invalidate(busProvider(busId));
-                        ref.invalidate(busCompletenessProvider(busId));
-                      },
+                      onTap: () => _runFrom(context, ref, busSetupStages.indexOf(stage), bus),
                     ),
                   ),
                 ),

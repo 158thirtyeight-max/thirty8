@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase_providers.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 import 'seat_layout_model.dart';
 import 'seat_layout_widgets.dart';
 
@@ -59,7 +60,6 @@ class _StageSeatLayoutScreenState extends ConsumerState<StageSeatLayoutScreen> {
   late AislePreset _preset = _seating == 'sleeper' ? sleeperPresets.first : seaterPresets.first;
   int _decksChoice = 1;
   bool _cabRow = true;
-  bool _driverRight = true;
   bool _loaded = false;
   bool _saving = false;
   bool _dirty = false;
@@ -149,7 +149,7 @@ class _StageSeatLayoutScreenState extends ConsumerState<StageSeatLayoutScreen> {
       decks: _seating == 'seater' ? 1 : _decksChoice,
       sleeper: _seating == 'sleeper',
       cabRow: _cabRow,
-      driverOnRight: _driverRight,
+      driverOnRight: true, // the driver is always on the right
       numbering: _config.numbering,
     );
     _touch(() {
@@ -514,17 +514,12 @@ class _StageSeatLayoutScreenState extends ConsumerState<StageSeatLayoutScreen> {
           const SizedBox(height: AppSpacing.sm),
         ],
         if (_editable) ...[
-          AppButton(label: 'Save layout', expand: true, loading: _saving, onPressed: (_saving || !_dirty) ? null : _save),
-          AppButton(
-            label: 'Save & continue later',
-            variant: AppButtonVariant.ghost,
-            expand: true,
-            onPressed: _saving
-                ? null
-                : () async {
-                    if (_dirty) await _save();
-                    if (context.mounted && !_dirty) Navigator.of(context).pop();
-                  },
+          SetupContinueButton(
+            loading: _saving,
+            onPressed: () async {
+              if (_dirty) await _save();
+              if (context.mounted && !_dirty && _error == null) Navigator.of(context).pop(kSetupContinue);
+            },
           ),
         ],
       ],
@@ -584,19 +579,10 @@ class _StageSeatLayoutScreenState extends ConsumerState<StageSeatLayoutScreen> {
             contentPadding: EdgeInsets.zero,
             dense: true,
             title: const Text('Driver cab at the front'),
-            subtitle: const Text('Adds a front row with the driver position'),
+            subtitle: const Text('Adds a front row with the driver seat on the right'),
             value: _cabRow,
             onChanged: (v) => setState(() => _cabRow = v),
           ),
-          if (_cabRow)
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Driver on left'), icon: Icon(Icons.west, size: 16)),
-                ButtonSegment(value: true, label: Text('Driver on right'), icon: Icon(Icons.east, size: 16)),
-              ],
-              selected: {_driverRight},
-              onSelectionChanged: (s) => setState(() => _driverRight = s.first),
-            ),
           const SizedBox(height: AppSpacing.sm),
           AppButton(
             label: _cells.isEmpty ? 'Build layout for $_capacity positions' : 'Rebuild layout',
@@ -613,11 +599,10 @@ class _StageSeatLayoutScreenState extends ConsumerState<StageSeatLayoutScreen> {
   // 3. the bus -----------------------------------------------------------
   Widget _busCard(BuildContext context, Map<CellKey, String> codes) {
     final theme = Theme.of(context);
-    final modes = <(CanvasMode, IconData, String)>[
+    const modes = <(CanvasMode, IconData, String)>[
       (CanvasMode.types, Icons.event_seat, 'Seat types'),
-      (CanvasMode.seats, Icons.add_circle_outline, 'Add / remove seats'),
+      (CanvasMode.seats, Icons.add_circle_outline, 'Add / remove'),
       (CanvasMode.aisle, Icons.swap_horiz, 'Aisle'),
-      if (_manual) (CanvasMode.number, Icons.pin_outlined, 'Number seats'),
     ];
     final hint = switch (_mode) {
       CanvasMode.types => 'Tap a seat to make it Passenger, Ladies Reserved, Accessible, Crew, Driver, Conductor or Unavailable.',
@@ -635,17 +620,25 @@ class _StageSeatLayoutScreenState extends ConsumerState<StageSeatLayoutScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_editable) ...[
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
+            // Three buttons; manual numbering is reached from the numbering card below.
+            Row(
               children: [
-                for (final m in modes)
-                  ChoiceChip(
-                    avatar: Icon(m.$2, size: 16),
-                    label: Text(m.$3),
-                    selected: _mode == m.$1,
-                    onSelected: (_) => setState(() => _mode = m.$1),
+                for (var i = 0; i < modes.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: _mode == modes[i].$1
+                        ? FilledButton.icon(
+                            onPressed: () => setState(() => _mode = modes[i].$1),
+                            icon: Icon(modes[i].$2, size: 16),
+                            label: FittedBox(fit: BoxFit.scaleDown, child: Text(modes[i].$3)),
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: () => setState(() => _mode = modes[i].$1),
+                            icon: Icon(modes[i].$2, size: 16),
+                            label: FittedBox(fit: BoxFit.scaleDown, child: Text(modes[i].$3)),
+                          ),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: AppSpacing.xs),

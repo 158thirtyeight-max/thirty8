@@ -39,7 +39,7 @@ class StopCard extends StatelessWidget {
   final bool lockLocation;
   final bool enabled;
 
-  /// Every active location (id, name, location_code, is_pickup_enabled, is_drop_enabled), in admin order.
+  /// Every active location (id, name, is_pickup_enabled, is_drop_enabled), in admin order.
   final List<Map<String, dynamic>> locations;
 
   /// Locations already used by other stops of this route (a location appears once).
@@ -99,7 +99,7 @@ class StopCard extends StatelessWidget {
             ),
             if (lockLocation)
               Text(
-                stop.cityId == null ? 'Choose the ${label.toLowerCase()} location above' : '${_name(stop.cityId)}  ·  ${current?['location_code'] ?? ''}',
+                stop.cityId == null ? 'Choose the ${label.toLowerCase()} location above' : _name(stop.cityId),
                 style: theme.textTheme.titleSmall,
               )
             else
@@ -110,7 +110,7 @@ class StopCard extends StatelessWidget {
                 decoration: const InputDecoration(labelText: 'Location'),
                 items: [
                   for (final l in _options)
-                    DropdownMenuItem(value: l['id'] as String, child: Text('${l['name']}  ·  ${l['location_code']}', overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: l['id'] as String, child: Text(l['name'] as String, overflow: TextOverflow.ellipsis)),
                 ],
                 onChanged: enabled
                     ? (v) {

@@ -43,7 +43,7 @@ class JourneyTimeline extends StatelessWidget {
   List<String> _times(RouteStop s, int i, int n) {
     final dur = journey.durationMin;
     if (journey.startMin == null) return const [];
-    if (i == 0) return ['departs ${formatClock(journey.startMin)}'];
+    if (i == 0) return ['departs ${journey.timeLabel(0)}'];
     if (i == n - 1) return dur == null ? const [] : ['arrives ${journey.timeLabel(dur)}'];
     final a = s.arrivalOffset;
     if (a == null) return const [];

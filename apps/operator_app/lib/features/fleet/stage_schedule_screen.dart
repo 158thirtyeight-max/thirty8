@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/supabase_providers.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 import 'operating_days_picker.dart';
 import 'route_model.dart';
 import 'schedule_model.dart';
@@ -56,10 +57,7 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
   }
 
   Future<void> _pickDeparture() async {
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: (_departureMin ?? 360) ~/ 60, minute: (_departureMin ?? 360) % 60),
-    );
+    final t = await pick24HourTime(context, minutes: _departureMin);
     if (t != null) setState(() { _departureMin = t.hour * 60 + t.minute; _dirty = true; });
   }
 
@@ -166,7 +164,7 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                'Arrival ${formatClock(arrivalMin)}${arrivalNextDay ? ' (+1 day)' : ''}\nJourney ${formatDuration(_durationMin)}',
+                'Arrival ${formatClock(arrivalMin)} (${arrivalNextDay ? 'Next Day' : 'Today'})\nJourney ${formatDuration(_durationMin)}',
                 style: theme.textTheme.bodyMedium,
               ),
             ),
@@ -208,17 +206,12 @@ class _StageScheduleScreenState extends ConsumerState<StageScheduleScreen> {
         ],
         if (_editable) ...[
           const SizedBox(height: AppSpacing.md),
-          AppButton(label: _configured ? 'Save schedule' : 'Confirm schedule', expand: true, loading: _saving, onPressed: (_saving || !_dirty) ? null : _save),
-          AppButton(
-            label: 'Save & continue later',
-            variant: AppButtonVariant.ghost,
-            expand: true,
-            onPressed: _saving
-                ? null
-                : () async {
-                    if (_dirty) await _save();
-                    if (context.mounted && _serverErrors.isEmpty) Navigator.of(context).pop();
-                  },
+          SetupContinueButton(
+            loading: _saving,
+            onPressed: () async {
+              if (_dirty) await _save();
+              if (context.mounted && _serverErrors.isEmpty && _error == null) Navigator.of(context).pop(kSetupContinue);
+            },
           ),
         ],
       ],

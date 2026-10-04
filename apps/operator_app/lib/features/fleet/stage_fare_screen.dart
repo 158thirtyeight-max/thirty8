@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/supabase_providers.dart';
 import 'fare_model.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 import 'stage_seat_layout_screen.dart';
 
 class _RouteFareRow {
@@ -423,17 +424,12 @@ class _StageFareScreenState extends ConsumerState<StageFareScreen> {
         ],
         if (_editable) ...[
           const SizedBox(height: AppSpacing.md),
-          AppButton(label: 'Save fares', expand: true, loading: _saving, onPressed: (_saving || !_dirty) ? null : _save),
-          AppButton(
-            label: 'Save & continue later',
-            variant: AppButtonVariant.ghost,
-            expand: true,
-            onPressed: _saving
-                ? null
-                : () async {
-                    if (_dirty) await _save();
-                    if (context.mounted && _serverErrors.isEmpty) Navigator.of(context).pop();
-                  },
+          SetupContinueButton(
+            loading: _saving,
+            onPressed: () async {
+              if (_dirty) await _save();
+              if (context.mounted && _serverErrors.isEmpty && _error == null) Navigator.of(context).pop(kSetupContinue);
+            },
           ),
         ],
       ],

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/supabase_providers.dart';
 import '../bus_ops/route_summary.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 import 'journey_editor.dart';
 import 'route_model.dart';
 import 'stop_schedule.dart';
@@ -54,7 +55,6 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
   JourneyDraft? _ret;
   String _status = 'draft';
   int _step = 0;
-  final TextEditingController _nameCtl = TextEditingController();
   bool _loading = true;
   bool _saving = false;
   bool _dirty = false;
@@ -78,12 +78,6 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
     _init();
   }
 
-  @override
-  void dispose() {
-    _nameCtl.dispose();
-    super.dispose();
-  }
-
   Future<void> _init() async {
     final db = ref.read(supabaseProvider);
     try {
@@ -105,7 +99,6 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
         _revisionId = id;
         _status = rev['status'] as String;
         _tripType = rev['trip_type'] as String;
-        _nameCtl.text = (rev['name'] as String?) ?? '';
         _out = out == null ? JourneyDraft() : journeyFromRevision(out);
         _ret = ret == null ? null : journeyFromRevision(ret);
         if (widget.startWithReturn && _status == 'draft') {
@@ -187,7 +180,8 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
     final to = nameOf(_out.destId);
     return {
       'trip_type': _tripType,
-      if (_nameCtl.text.trim().isNotEmpty) 'name': _nameCtl.text.trim() else if (from != null && to != null) 'name': '$from to $to',
+      // The route name is never typed: it is always "<start> → <destination>".
+      if (from != null && to != null) 'name': '$from → $to',
       'outbound': journeyToPayload(_out),
       if (_tripType == 'round_trip' && _ret != null) 'return': journeyToPayload(_ret!),
     };
@@ -317,7 +311,7 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(applied ? 'Route saved.' : 'Submitted. Your current route stays live until an admin approves the change.'),
       ));
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(_setupStage ? kSetupContinue : true);
     } catch (e) {
       setState(() => _error = _message(e));
     } finally {
@@ -440,8 +434,6 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
               : null,
         ),
         const SizedBox(height: AppSpacing.md),
-        AppTextField(controller: _nameCtl, label: 'Route name', enabled: edit, onChanged: (_) => _touch()),
-        const SizedBox(height: AppSpacing.md),
         JourneyEditor(
           draft: _out,
           cities: cities,
@@ -560,26 +552,22 @@ class _RouteRevisionScreenState extends ConsumerState<RouteRevisionScreen> {
           Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
         ],
         const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            if (step > 0)
-              Expanded(child: AppButton(label: 'Back', variant: AppButtonVariant.outline, onPressed: () => setState(() => _step = step - 1))),
-            if (step > 0 && !atEnd) const SizedBox(width: AppSpacing.sm),
-            if (!atEnd) Expanded(child: AppButton(label: 'Next', onPressed: () => setState(() => _step = step + 1))),
-          ],
-        ),
+        // The steps above are tappable, so there is no separate Back button; Next walks through them.
+        if (!atEnd) AppButton(label: 'Next step', variant: AppButtonVariant.outline, expand: true, onPressed: () => setState(() => _step = step + 1)),
         if (edit) ...[
-          const SizedBox(height: AppSpacing.sm),
-          AppButton(
-            label: 'Save draft',
-            variant: AppButtonVariant.outline,
-            expand: true,
-            onPressed: (_saving || !_dirty) ? null : () => _saveDraft(cities),
-          ),
+          if (!_setupStage && !atEnd) ...[
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              label: 'Save draft',
+              variant: AppButtonVariant.outline,
+              expand: true,
+              onPressed: (_saving || !_dirty) ? null : () => _saveDraft(cities),
+            ),
+          ],
           if (atEnd) ...[
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: _setupStage ? 'Save & apply route' : 'Submit for approval',
+              label: _setupStage ? setupContinueLabel : 'Submit for approval',
               expand: true,
               loading: _saving,
               onPressed: (_saving || !canSubmit) ? null : () => _submit(cities),

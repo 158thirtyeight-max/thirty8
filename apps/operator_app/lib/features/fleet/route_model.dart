@@ -104,6 +104,9 @@ String formatClock(int? minutes) {
   return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 }
 
+/// Which day a clock time falls on, relative to the day the bus departs.
+String dayTag(int daysAfterDeparture) => daysAfterDeparture <= 0 ? 'Today' : (daysAfterDeparture == 1 ? 'Next Day' : '+$daysAfterDeparture days');
+
 String formatDuration(int? minutes) {
   if (minutes == null) return '—';
   final h = minutes ~/ 60;

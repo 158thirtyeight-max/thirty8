@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import 'bus_validators.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 
 /// Stage B — vehicle documents. The list comes from the admin-configured
 /// requirements that apply to this bus type; each document carries number,
@@ -59,6 +60,7 @@ class StageDocumentsScreen extends ConsumerWidget {
                   requirement: r,
                   docs: docs.where((d) => d['doc_type'] == r['doc_type']).toList(),
                 ),
+              SetupContinueButton(onPressed: () => Navigator.of(context).pop(kSetupContinue)),
             ],
           );
         }),
@@ -326,7 +328,7 @@ class _DocSheetState extends ConsumerState<_DocSheet> {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-            AppButton(label: 'Upload & save', expand: true, loading: _saving, onPressed: _saving ? null : _save),
+            AppButton(label: 'Upload document', expand: true, loading: _saving, onPressed: _saving ? null : _save),
             AppButton(label: 'Cancel', variant: AppButtonVariant.ghost, expand: true, onPressed: _saving ? null : () => Navigator.of(context).pop(false)),
           ],
         ),

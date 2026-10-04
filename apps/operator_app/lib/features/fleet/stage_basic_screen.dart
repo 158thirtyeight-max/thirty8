@@ -11,6 +11,7 @@ import 'bus_catalog.dart';
 import 'bus_photo_service.dart';
 import 'bus_validators.dart';
 import 'fleet_providers.dart';
+import 'setup_continue.dart';
 
 /// Stage A — basic bus information. Creating goes through the create_bus RPC
 /// (approved operators only, enforced server-side); editing updates the row
@@ -189,7 +190,7 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
 
       ref.invalidate(busesProvider(widget.operatorId));
       ref.invalidate(busProvider(busId));
-      if (mounted) Navigator.of(context).pop(busId);
+      if (mounted) Navigator.of(context).pop(_isNew ? busId : kSetupContinue);
     } catch (e) {
       final msg = e.toString();
       setState(() => _error = msg.contains('duplicate') || msg.contains('unique')
@@ -425,16 +426,10 @@ class _StageBasicScreenState extends ConsumerState<StageBasicScreen> {
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 AppButton(
-                  label: _isNew ? 'Create bus & continue' : 'Save',
+                  label: setupContinueLabel,
                   expand: true,
                   loading: _saving,
                   onPressed: _saving ? null : _save,
-                ),
-                AppButton(
-                  label: 'Cancel',
-                  variant: AppButtonVariant.ghost,
-                  expand: true,
-                  onPressed: _saving ? null : () => Navigator.of(context).pop(),
                 ),
               ],
             ),
