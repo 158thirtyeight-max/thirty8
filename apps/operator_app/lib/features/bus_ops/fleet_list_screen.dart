@@ -9,7 +9,7 @@ import 'seat_layout/seat_layout_wizard_screen.dart';
 
 final busesProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, operatorId) async {
   final supabase = ref.watch(supabaseProvider);
-  return await supabase.from('buses').select().eq('operator_id', operatorId).order('created_at', ascending: false);
+  return await supabase.from('buses').select('*, bus_layouts(id, is_active)').eq('operator_id', operatorId).order('created_at', ascending: false);
 });
 
 class FleetListScreen extends ConsumerWidget {
@@ -35,23 +35,28 @@ class FleetListScreen extends ConsumerWidget {
                   itemCount: buses.length,
                   itemBuilder: (c, i) {
                     final bus = buses[i];
+                    final hasLayout = ((bus['bus_layouts'] as List?) ?? const []).any((l) => l['is_active'] == true);
+                    Future<void> openWizard() async {
+                      final saved = await Navigator.of(buildContext).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => SeatLayoutWizardScreen(busId: bus['id'] as String, initialCapacity: bus['total_seats'] as int),
+                        ),
+                      );
+                      if (saved == true) ref.invalidate(busesProvider(context.operatorId));
+                    }
+
                     return AppCard(
                       padding: EdgeInsets.zero,
                       child: AppListItem(
                         leading: const Icon(Icons.directions_bus),
                         title: bus['registration_number'] as String,
-                        subtitle: '${bus['bus_type']} · ${bus['total_seats']} seats · ${bus['status']}',
-                        trailing: IconButton(
-                          icon: const Icon(Icons.event_seat_outlined),
-                          tooltip: 'Configure seat layout',
-                          onPressed: () async {
-                            final saved = await Navigator.of(buildContext).push<bool>(
-                              MaterialPageRoute(
-                                builder: (_) => SeatLayoutWizardScreen(busId: bus['id'] as String, initialCapacity: bus['total_seats'] as int),
-                              ),
-                            );
-                            if (saved == true) ref.invalidate(busesProvider(context.operatorId));
-                          },
+                        subtitle: '${bus['bus_type']} · ${bus['total_seats']} seats · ${bus['status']}'
+                            '${hasLayout ? '' : '\nNo seat layout yet'}',
+                        onTap: openWizard,
+                        trailing: TextButton.icon(
+                          onPressed: openWizard,
+                          icon: const Icon(Icons.event_seat_outlined, size: 18),
+                          label: Text(hasLayout ? 'Seat layout' : 'Set up seats'),
                         ),
                       ),
                     );
