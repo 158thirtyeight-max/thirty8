@@ -46,8 +46,8 @@ dependencies:
     path: ../../packages/design_system
   seat_map:
     path: ../../packages/seat_map
-  flutter_map: ^8.2.2
-  latlong2: ^0.9.1
+  route_map:
+    path: ../../packages/route_map
 
 dev_dependencies:
   flutter_test:

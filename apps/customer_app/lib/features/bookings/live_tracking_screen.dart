@@ -2,10 +2,9 @@ import 'dart:async';
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:route_map/route_map.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_providers.dart';
@@ -99,10 +98,8 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
                             ],
                           ),
                         ),
-                        if (loc.hasPoint) ...[
-                          const SizedBox(height: 12),
-                          _MapCard(location: loc),
-                        ],
+                        const SizedBox(height: 12),
+                        TripMapCard(client: ref.read(supabaseProvider), tripId: widget.tripId),
                         const SizedBox(height: 16),
                         const AppSectionHeader(title: 'Stops reached'),
                         if ((data['milestones'] as List? ?? const []).isEmpty)
@@ -120,49 +117,6 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
                     ),
                   ),
                 ),
-    );
-  }
-}
-
-class _MapCard extends StatelessWidget {
-  const _MapCard({required this.location});
-
-  final VehicleLocation location;
-
-  @override
-  Widget build(BuildContext context) {
-    final pos = LatLng(location.latitude!, location.longitude!);
-    final s = location.status;
-    final color = s.color;
-    return ClipRRect(
-      borderRadius: AppRadius.lgRadius,
-      child: SizedBox(
-        height: 240,
-        child: FlutterMap(
-          options: MapOptions(initialCenter: pos, initialZoom: 13, interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate)),
-          children: [
-            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.thirty8.customer_app'),
-            if (s.isEstimate) CircleLayer(circles: [CircleMarker(point: pos, radius: 150, useRadiusInMeter: true, color: color.withValues(alpha: 0.15), borderColor: color, borderStrokeWidth: 1.5)]),
-            MarkerLayer(markers: [
-              Marker(
-                point: pos,
-                width: 40,
-                height: 40,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: s.isEstimate ? Colors.white : color,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: color, width: 3),
-                    boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
-                  ),
-                  child: Icon(s.isLive ? Icons.directions_bus : (s.isEstimate ? Icons.help_outline : Icons.hourglass_empty), size: 22, color: s.isEstimate ? color : Colors.white),
-                ),
-              ),
-            ]),
-            const RichAttributionWidget(attributions: [TextSourceAttribution('© OpenStreetMap contributors')]),
-          ],
-        ),
-      ),
     );
   }
 }

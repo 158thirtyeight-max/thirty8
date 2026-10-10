@@ -1,0 +1,21 @@
+name: route_map
+description: "Shared trip map: stored road-following route, ordered stops and the live bus position (MapLibre + OpenFreeMap), used by the customer and operator apps."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^2.17.2
+  maplibre_gl: ^0.25.0
+  intl: ^0.20.2
+  design_system:
+    path: ../design_system
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

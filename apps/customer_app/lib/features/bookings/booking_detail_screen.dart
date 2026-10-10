@@ -2,6 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:route_map/route_map.dart';
 
 import '../../core/supabase_providers.dart';
 import '../booking/booking_confirmation_screen.dart';
@@ -270,6 +271,10 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               const SizedBox(height: 16),
               if (status == 'payment_pending') _paymentPending(context),
               _refundSection(context),
+              if (showTickets && _tripId != null && tripStatus != 'cancelled') ...[
+                TripMapCard(client: ref.read(supabaseProvider), tripId: _tripId!),
+                const SizedBox(height: 16),
+              ],
               Text(showTickets ? 'Tickets' : 'Passengers', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               ..._items.map((item) {

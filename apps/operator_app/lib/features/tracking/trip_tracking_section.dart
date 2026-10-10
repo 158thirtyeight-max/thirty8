@@ -2,16 +2,15 @@ import 'dart:async';
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:route_map/route_map.dart' show TripMapCard;
 
 import '../../core/operator_providers.dart';
 import '../../core/supabase_providers.dart';
-import '../fleet/fleet_providers.dart';
 import '../trip_dashboard/trip_ops_channel.dart';
 import 'gps_tracking_screen.dart';
+import 'phone_location_card.dart';
 import 'tracking_models.dart';
 
 /// Trip → Tracking. The bus-mounted GPS tracker is the primary source; estimated and last-known
@@ -29,14 +28,13 @@ class TripTrackingSection extends ConsumerStatefulWidget {
 }
 
 class _TripTrackingSectionState extends ConsumerState<TripTrackingSection> {
-  late final TripOpsChannel _channel;
+  late final TripPing _channel;
   Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
-    _channel = TripOpsChannel(
-      ref.read(supabaseProvider),
+    _channel = ref.read(tripPingFactoryProvider)(
       widget.tripId,
       () {
         if (mounted) ref.invalidate(tripTrackingProvider(widget.tripId));
@@ -63,14 +61,15 @@ class _TripTrackingSectionState extends ConsumerState<TripTrackingSection> {
     return async.when(
       loading: () => const AppLoadingState(),
       error: (e, _) => AppErrorState(message: 'Could not load tracking.', onRetry: () => ref.invalidate(tripTrackingProvider(widget.tripId))),
-      data: (t) => _Body(info: t, busId: widget.busId, busRegistration: widget.busRegistration, operatorContext: widget.operatorContext),
+      data: (t) => _Body(tripId: widget.tripId, info: t, busId: widget.busId, busRegistration: widget.busRegistration, operatorContext: widget.operatorContext),
     );
   }
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.info, required this.busId, required this.busRegistration, required this.operatorContext});
+  const _Body({required this.tripId, required this.info, required this.busId, required this.busRegistration, required this.operatorContext});
 
+  final String tripId;
   final TrackingInfo info;
   final String busId;
   final String busRegistration;
@@ -82,16 +81,6 @@ class _Body extends ConsumerWidget {
     final t = info;
     final now = DateTime.now();
     final time = DateFormat('h:mm a');
-    final route = ref.watch(busRouteProvider(busId)).value;
-
-    final stops = <LatLng>[];
-    if (route != null) {
-      final pts = [
-        for (final p in [...(route['boarding'] as List), ...(route['dropping'] as List)])
-          if (p['latitude'] != null && p['longitude'] != null) (p['sequence_no'] as num, LatLng((p['latitude'] as num).toDouble(), (p['longitude'] as num).toDouble())),
-      ]..sort((a, b) => a.$1.compareTo(b.$1));
-      stops.addAll([for (final p in pts) p.$2]);
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,12 +99,18 @@ class _Body extends ConsumerWidget {
             ],
           ),
         ),
-        if (t.hasPosition) ...[
-          const SizedBox(height: AppSpacing.sm),
-          _TrackingMap(info: t, stops: stops),
-          const SizedBox(height: AppSpacing.sm),
-        ] else
-          const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.sm),
+        TripMapCard(
+          client: ref.read(supabaseProvider),
+          tripId: tripId,
+          showTripStatus: true,
+          buildGeometry: (routeId) async {
+            await ref.read(supabaseProvider).functions.invoke('route-geometry', body: {'route_id': routeId});
+          },
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        PhoneLocationCard(tripId: tripId, tripStatus: t.tripStatus),
+        const SizedBox(height: AppSpacing.sm),
         AppCard(
           child: Column(children: [
             _row(theme, 'Tracking source', t.sourceLabel),
@@ -164,53 +159,4 @@ class _Body extends ConsumerWidget {
           Expanded(child: Text(value)),
         ]),
       );
-}
-
-class _TrackingMap extends StatelessWidget {
-  const _TrackingMap({required this.info, required this.stops});
-
-  final TrackingInfo info;
-  final List<LatLng> stops;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = info;
-    final pos = LatLng(t.latitude!, t.longitude!);
-    final color = t.status.color;
-    final estimate = t.status.isEstimate;
-    final live = t.status.isLive;
-
-    // Confirmed live = solid bus marker; estimate = hollow marker + uncertainty circle; last known = grey hourglass.
-    final marker = Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: estimate ? Colors.white : color,
-        shape: BoxShape.circle,
-        border: Border.all(color: color, width: 3),
-        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
-      ),
-      child: Icon(live ? Icons.directions_bus : (estimate ? Icons.help_outline : Icons.hourglass_empty), size: 22, color: estimate ? color : Colors.white),
-    );
-
-    return ClipRRect(
-      borderRadius: AppRadius.lgRadius,
-      child: SizedBox(
-        height: 260,
-        child: FlutterMap(
-          options: MapOptions(initialCenter: pos, initialZoom: 13, interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate)),
-          children: [
-            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.thirty8.operator_app'),
-            if (stops.length >= 2) PolylineLayer(polylines: [Polyline(points: stops, strokeWidth: 3, color: const Color(0xFF6D28D9).withValues(alpha: 0.6))]),
-            MarkerLayer(markers: [
-              for (final s in stops) Marker(point: s, width: 10, height: 10, child: Container(decoration: BoxDecoration(color: const Color(0xFF6D28D9), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)))),
-            ]),
-            if (estimate) CircleLayer(circles: [CircleMarker(point: pos, radius: 150, useRadiusInMeter: true, color: color.withValues(alpha: 0.15), borderColor: color, borderStrokeWidth: 1.5)]),
-            MarkerLayer(markers: [Marker(point: pos, width: 40, height: 40, child: marker)]),
-            const RichAttributionWidget(attributions: [TextSourceAttribution('© OpenStreetMap contributors')]),
-          ],
-        ),
-      ),
-    );
-  }
 }
